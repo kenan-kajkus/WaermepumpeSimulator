@@ -45,6 +45,7 @@ public class SimulationEngine
         var (cop55, eta55) = CalcCurve(lutArr, 55, etaPoints55);
 
         var p55Vals = p35Vals.Select(v => v * 0.92).ToArray();
+        var pMin55Vals = pMinVals.Select(v => v * 0.92).ToArray();
 
         // Custom p_max considering vorlauf
         var pMaxCustom = new double[lutArr.Length];
@@ -129,7 +130,7 @@ public class SimulationEngine
             double lGes = lH + wwLastH;
             double fVl = vl <= 35 ? 0 : vl >= 55 ? 1 : (vl - 35) / 20.0;
             double pMaxAvail = MathHelpers.Interp(tA, lutArr, p35Vals) + fVl * (MathHelpers.Interp(tA, lutArr, p55Vals) - MathHelpers.Interp(tA, lutArr, p35Vals));
-            double pMinAvail = MathHelpers.Interp(tA, lutArr, pMinVals) + fVl * (MathHelpers.Interp(tA, lutArr, pMinVals) - MathHelpers.Interp(tA, lutArr, pMinVals));
+            double pMinAvail = MathHelpers.Interp(tA, lutArr, pMinVals) + fVl * (MathHelpers.Interp(tA, lutArr, pMin55Vals) - MathHelpers.Interp(tA, lutArr, pMinVals));
 
             int isIcing = 0;
             double penalty = 1.0;
