@@ -21,15 +21,9 @@ public static class MathHelpers
         return (magnusB * alpha) / (magnusA - alpha);
     }
 
-    public static double Gelu(double x)
-    {
-        double g = 0.5 * x * (1.0 + Math.Tanh(0.79788 * (x + 0.044715 * Math.Pow(x, 3))));
-        return g > 0 ? Math.Log(1.0 + g) : g;
-    }
-
     public static double GetCarnotCop(double sourceTemp, double flowTemp)
     {
-        double deltaT = Math.Max((flowTemp + 273.15) - (sourceTemp + 273.15), 5.0);
+        double deltaT = Math.Max(flowTemp - sourceTemp, 5.0);
         return (flowTemp + 273.15) / deltaT;
     }
 
