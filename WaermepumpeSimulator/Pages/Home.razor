@@ -3,6 +3,7 @@
 @inject HeatPumpPresetService PresetSvc
 @inject SimulationEngine Engine
 @inject IJSRuntime JS
+@inject HttpClient Http
 
 <PageTitle>WP Simulator & JAZ Rechner</PageTitle>
 
@@ -632,6 +633,11 @@ else
             displayName = profile?.Name ?? _selectedCity;
         }
 
+        ApplyWeatherData(data, years, displayName);
+    }
+
+    private void ApplyWeatherData(List<WeatherDataPoint> data, HashSet<int> years, string displayName)
+    {
         _allWeatherData = data;
         _availableYears = years;
 
@@ -639,29 +645,23 @@ else
         {
             _selectedYear = years.Max().ToString();
             _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
-            _statusText = displayName;
             _statusSub = $"Jahr {_selectedYear} ({_weatherData.Count}h)";
-            _statusClass = "text-blue-600";
         }
         else
         {
             _selectedYear = years.First().ToString();
             _weatherData = data.Take(8760).ToList();
-            while (_weatherData.Count < 8760) _weatherData.Add(_weatherData[_weatherData.Count % Math.Max(1, _weatherData.Count)]);
-            _statusText = displayName;
+            while (_weatherData.Count < 8760)
+                _weatherData.Add(_weatherData[_weatherData.Count % Math.Max(1, _weatherData.Count)]);
             _statusSub = $"Open-Meteo {_startDate:yyyy-MM-dd} – {_endDate:yyyy-MM-dd} ({data.Count}h)";
-            _statusClass = "text-blue-600";
         }
+
+        _statusText = displayName;
+        _statusClass = "text-blue-600";
     }
 
     private async Task OnLocationChanged()
     {
-        if (_selectedCity == "__geo__")
-        {
-            // Already loaded geo data, just re-run
-            RunSimulation();
-            return;
-        }
         await LoadWeather();
         RunSimulation();
     }
@@ -673,19 +673,17 @@ else
 
         try
         {
-            // Get browser geolocation
             var coords = await JS.InvokeAsync<double[]>("blazorGetLocation");
-
             double lat = coords[0], lon = coords[1];
 
-            // Reverse geocode via Open-Meteo geocoding
             string cityName = $"{lat:F2}°N, {lon:F2}°E";
             try
             {
                 var reverseUrl = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&lon={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&format=json&zoom=10&accept-language=de";
-                var http = new HttpClient();
-                http.DefaultRequestHeaders.Add("User-Agent", "WPSimulator/1.0");
-                var geoJson = await http.GetStringAsync(reverseUrl);
+                using var request = new HttpRequestMessage(HttpMethod.Get, reverseUrl);
+                request.Headers.Add("User-Agent", "WPSimulator/1.0");
+                var response = await Http.SendAsync(request);
+                var geoJson = await response.Content.ReadAsStringAsync();
                 var doc = System.Text.Json.JsonDocument.Parse(geoJson);
                 if (doc.RootElement.TryGetProperty("address", out var addr))
                 {
@@ -697,32 +695,14 @@ else
             }
             catch { /* keep coordinate name */ }
 
-            // Fetch weather from Open-Meteo Archive API using selected date range
             var (data, years) = await WeatherSvc.FetchOpenMeteoAsync(lat, lon, _startDate, _endDate);
 
             _geoLocationName = cityName;
             _geoLatitude = lat;
             _geoLongitude = lon;
             _selectedCity = "__geo__";
-            _allWeatherData = data;
-            _availableYears = years;
 
-            if (years.Count > 1)
-            {
-                _selectedYear = years.Max().ToString();
-                _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
-            }
-            else
-            {
-                _selectedYear = years.First().ToString();
-                _weatherData = data;
-                // Pad to 8760 if needed
-                while (_weatherData.Count < 8760)
-                    _weatherData.Add(new WeatherDataPoint { Temperature = 5, RelativeHumidity = 80, Index = _weatherData.Count, Year = _selectedYear == "all" ? 0 : int.Parse(_selectedYear) });
-            }
-
-            _statusText = cityName;
-            _statusSub = $"Open-Meteo {_startDate:yyyy-MM-dd} – {_endDate:yyyy-MM-dd} ({data.Count}h)";
+            ApplyWeatherData(data, years, cityName);
             _statusClass = "text-green-600";
 
             RunSimulation();
@@ -806,16 +786,16 @@ else
         }
     }
 
-    private void RunSimulation()
+    private async void RunSimulation()
     {
         if (_weatherData.Count == 0) return;
         _result = Engine.Run(Params, _weatherData);
         _eval = EvaluationService.Evaluate(_result);
         _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
-        _ = SaveState();
+        await SaveState();
     }
 
-    private void AddToComparison()
+    private async Task AddToComparison()
     {
         if (_result == null) return;
 
@@ -843,22 +823,22 @@ else
             LoadAtDesignTemp = _result.LoadAtDesignTemp,
             HeatPumpPowerAtDesignTemp = _result.HeatPumpPowerAtDesignTemp
         });
-        _ = SaveState();
+        await SaveState();
     }
 
-    private void RemoveComparison(int index)
+    private async Task RemoveComparison(int index)
     {
         if (index >= 0 && index < _comparisonEntries.Count)
         {
             _comparisonEntries.RemoveAt(index);
-            _ = SaveState();
+            await SaveState();
         }
     }
 
-    private void ClearComparison()
+    private async Task ClearComparison()
     {
         _comparisonEntries.Clear();
-        _ = SaveState();
+        await SaveState();
     }
 
     private const string StateKey = "wp-sim-state";
