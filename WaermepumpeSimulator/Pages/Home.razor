@@ -2,6 +2,7 @@
 @inject WeatherDataService WeatherSvc
 @inject HeatPumpPresetService PresetSvc
 @inject SimulationEngine Engine
+@inject IJSRuntime JS
 
 <PageTitle>WP Simulator & JAZ Rechner</PageTitle>
 
@@ -17,7 +18,21 @@
                     {
                         <option value="@p.Key">@p.DisplayName</option>
                     }
+                    @if (_geoLocationName != null)
+                    {
+                        <option value="__geo__">@_geoLocationName</option>
+                    }
                 </select>
+                <button @onclick="UseMyLocation" class="bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 px-2 rounded border border-blue-200 transition text-xs flex items-center gap-1" title="Meinen Standort verwenden" disabled="@_geoLoading">
+                    @if (_geoLoading)
+                    {
+                        <i class="fas fa-spinner fa-spin"></i>
+                    }
+                    else
+                    {
+                        <i class="fas fa-location-crosshairs"></i>
+                    }
+                </button>
             </div>
 
             @if (_availableYears.Count > 1)
@@ -177,6 +192,17 @@
                             </optgroup>
                         }
                     </select>
+                </div>
+                <div class="input-group flex gap-2 mb-3">
+                    <button @onclick="SaveKennfeld" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1">
+                        <i class="fas fa-download"></i> Speichern
+                    </button>
+                    <label class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1 cursor-pointer">
+                        <i class="fas fa-upload"></i> Laden
+                        <InputFile OnChange="LoadKennfeld" accept=".json" class="hidden" />
+                    </label>
+                    <i class="fas fa-circle-question help-icon self-center"></i>
+                    <span class="tooltip tooltip-right">Speichert/lädt die aktuellen Kennfelddaten (PMax, PMin, COP) als JSON-Datei.<br><br><b>Format:</b><br><code>{"PMax": "-7, 6.8\n2, 7.0",<br>"PMin": "",<br>"CopData": "35, -7, 2.80\n..."}</code></span>
                 </div>
                 <div class="text-xs text-gray-500 mb-2">Format: Temp,Wert (Neue Zeile für neuen Punkt)</div>
                 <div class="input-group">
@@ -449,6 +475,9 @@
     private string _statusSub = "-";
     private string _statusClass = "text-gray-500";
 
+    private string? _geoLocationName;
+    private bool _geoLoading;
+
     private readonly Dictionary<string, string> _tabs = new()
     {
         ["dashboard"] = "1. Effizienz & Dauerlinie",
@@ -554,6 +583,34 @@
     }
 
     private void ResetPreset() => _selectedPreset = "custom";
+
+    private async Task SaveKennfeld()
+    {
+        var data = new KennfeldData
+        {
+            PMax = Params.RawPMax,
+            PMin = Params.RawPMin,
+            CopData = Params.RawCopData
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval", $"{{const a=document.createElement('a');a.href='data:application/json;base64,{base64}';a.download='kennfeld.json';a.click();}}");
+    }
+
+    private async Task LoadKennfeld(InputFileChangeEventArgs e)
+    {
+        using var reader = new StreamReader(e.File.OpenReadStream(maxAllowedSize: 1024 * 1024));
+        var json = await reader.ReadToEndAsync();
+        var data = System.Text.Json.JsonSerializer.Deserialize<KennfeldData>(json);
+        if (data != null)
+        {
+            Params.RawPMax = data.PMax;
+            Params.RawPMin = data.PMin;
+            Params.RawCopData = data.CopData;
+            _selectedPreset = "custom";
+        }
+    }
 
     private void RunSimulation()
     {
