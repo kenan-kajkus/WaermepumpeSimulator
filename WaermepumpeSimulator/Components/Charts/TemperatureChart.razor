@@ -2,7 +2,7 @@
 
 @if (Result != null)
 {
-    <ApexChart TItem="XYPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+    <ApexChart TItem="XYPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric" @ref="_chart">
         <ApexPointSeries TItem="XYPoint"
                          Items="_data"
                          Name="Temp (24h Mittel)"
@@ -15,8 +15,10 @@
 @code {
     [Parameter] public SimulationResult? Result { get; set; }
 
+    private ApexChart<XYPoint>? _chart;
     private ApexChartOptions<XYPoint> _options = new();
     private List<XYPoint> _data = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -24,7 +26,6 @@
         var roll = RollingAvg(Result.Temperature, 24);
 
         _data = [];
-        // Downsample
         for (int i = 0; i < roll.Length; i += 6)
             _data.Add(new XYPoint(i, roll[i]));
 
@@ -39,6 +40,16 @@
             Legend = new Legend { Show = false },
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 
     private static double[] RollingAvg(double[] arr, int window)

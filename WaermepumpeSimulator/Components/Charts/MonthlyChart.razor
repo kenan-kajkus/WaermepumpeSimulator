@@ -2,7 +2,7 @@
 
 @if (Monthly != null)
 {
-    <ApexChart TItem="MonthlyChartPoint" Options="_options" Height="500">
+    <ApexChart TItem="MonthlyChartPoint" Options="_options" Height="500" @ref="_chart">
         <ApexPointSeries TItem="MonthlyChartPoint"
                          Items="_data"
                          Name="Wärme (kWh)"
@@ -21,8 +21,10 @@
 @code {
     [Parameter] public List<MonthlyAggregate>? Monthly { get; set; }
 
+    private ApexChart<MonthlyChartPoint>? _chart;
     private ApexChartOptions<MonthlyChartPoint> _options = new();
     private List<MonthlyChartPoint> _data = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -45,5 +47,15 @@
             Yaxis = [new YAxis { Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(0); }" } }],
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(0); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }

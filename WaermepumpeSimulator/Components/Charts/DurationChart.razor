@@ -2,7 +2,7 @@
 
 @if (Result != null)
 {
-    <ApexChart TItem="DurationPoint" Options="_options" Height="450" XAxisType="XAxisType.Numeric">
+    <ApexChart TItem="DurationPoint" Options="_options" Height="450" XAxisType="XAxisType.Numeric" @ref="_chart">
         <ApexPointSeries TItem="DurationPoint"
                          Items="_data"
                          Name="WP"
@@ -27,8 +27,10 @@
 @code {
     [Parameter] public SimulationResult? Result { get; set; }
 
+    private ApexChart<DurationPoint>? _chart;
     private ApexChartOptions<DurationPoint> _options = new();
     private List<DurationPoint> _data = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -70,5 +72,15 @@
             Legend = new Legend { Position = LegendPosition.Bottom },
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }

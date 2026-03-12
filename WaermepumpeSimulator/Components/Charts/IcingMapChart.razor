@@ -2,7 +2,7 @@
 
 @if (Result != null)
 {
-    <ApexChart TItem="ScatterPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+    <ApexChart TItem="ScatterPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric" @ref="_chart">
         <ApexPointSeries TItem="ScatterPoint"
                          Items="_normalPts"
                          Name="Normal"
@@ -24,9 +24,11 @@
 @code {
     [Parameter] public SimulationResult? Result { get; set; }
 
+    private ApexChart<ScatterPoint>? _chart;
     private ApexChartOptions<ScatterPoint> _options = new();
     private List<ScatterPoint> _normalPts = [];
     private List<ScatterPoint> _icingPts = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -54,5 +56,15 @@
             Legend = new Legend { Position = LegendPosition.Bottom },
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(0); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }

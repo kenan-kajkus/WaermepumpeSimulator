@@ -34,6 +34,8 @@
     private List<XYPoint> _wpLine = [];
     private List<XYPoint> _wpPlusStab = [];
 
+    private bool _dataChanged;
+
     protected override void OnParametersSet()
     {
         if (Result == null) return;
@@ -41,7 +43,6 @@
 
         _demandLine = [new(r.DesignTemperature, r.LoadAtDesignTemp), new(r.HeatingLimitTemperature, r.WarmwaterBaseLoad)];
 
-        // Downsample LUT for chart performance (every 5th point)
         _wpLine = [];
         _wpPlusStab = [];
         for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
@@ -60,5 +61,15 @@
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } },
             Legend = new Legend { Position = LegendPosition.Bottom }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }

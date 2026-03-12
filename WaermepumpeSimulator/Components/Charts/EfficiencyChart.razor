@@ -2,7 +2,7 @@
 
 @if (Result != null)
 {
-    <ApexChart TItem="ScatterPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+    <ApexChart TItem="ScatterPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric" @ref="_chart">
         @foreach (var group in _groups)
         {
             <ApexPointSeries TItem="ScatterPoint"
@@ -30,10 +30,12 @@
 @code {
     [Parameter] public SimulationResult? Result { get; set; }
 
+    private ApexChart<ScatterPoint>? _chart;
     private ApexChartOptions<ScatterPoint> _options = new();
     private List<ScatterPoint> _limitLine = [];
     private List<ScatterPoint> _minLine = [];
     private List<(string Name, List<ScatterPoint> Points)> _groups = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -83,5 +85,15 @@
             Legend = new Legend { Position = LegendPosition.Bottom },
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }

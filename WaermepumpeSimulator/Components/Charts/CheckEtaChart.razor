@@ -2,7 +2,7 @@
 
 @if (Result != null)
 {
-    <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+    <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric" @ref="_chart">
         <ApexPointSeries TItem="XYPoint"
                          Items="_eta35"
                          Name="η W35"
@@ -33,11 +33,13 @@
 @code {
     [Parameter] public SimulationResult? Result { get; set; }
 
+    private ApexChart<XYPoint>? _chart;
     private ApexChartOptions<XYPoint> _options = new();
     private List<XYPoint> _eta35 = [];
     private List<XYPoint> _eta55 = [];
     private List<XYPoint> _pts35 = [];
     private List<XYPoint> _pts55 = [];
+    private bool _dataChanged;
 
     protected override void OnParametersSet()
     {
@@ -68,5 +70,15 @@
             Legend = new Legend { Position = LegendPosition.Bottom },
             Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2); }" } }
         };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
     }
 }
