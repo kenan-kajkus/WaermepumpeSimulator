@@ -522,19 +522,12 @@
         _statusText = "Lade...";
         _statusClass = "text-gray-500";
 
-        var (data, isSynthetic, years) = await WeatherSvc.LoadPresetWeatherAsync(_selectedCity);
+        var (data, isSynthetic, years) = await WeatherSvc.LoadPresetWeatherAsync(_selectedCity, _startDate, _endDate);
         _allWeatherData = data;
         _availableYears = years;
         var profile = _profiles.Find(p => p.Key == _selectedCity);
 
-        if (isSynthetic)
-        {
-            _weatherData = data;
-            _statusText = $"{profile?.Name ?? _selectedCity} (Sim)";
-            _statusSub = "CSV fehlt -> Synthetik";
-            _statusClass = "text-orange-600";
-        }
-        else if (years.Count > 1)
+        if (years.Count > 1)
         {
             _selectedYear = years.Max().ToString();
             _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
@@ -548,7 +541,7 @@
             _weatherData = data.Take(8760).ToList();
             while (_weatherData.Count < 8760) _weatherData.Add(_weatherData[_weatherData.Count % Math.Max(1, _weatherData.Count)]);
             _statusText = profile?.Name ?? _selectedCity;
-            _statusSub = "Datensatz geladen";
+            _statusSub = $"Open-Meteo {_startDate:yyyy-MM-dd} – {_endDate:yyyy-MM-dd} ({data.Count}h)";
             _statusClass = "text-blue-600";
         }
     }
@@ -581,8 +574,6 @@
             string cityName = $"{lat:F2}°N, {lon:F2}°E";
             try
             {
-                var geoUrl = $"https://geocoding-api.open-meteo.com/v1/search?latitude={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&longitude={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&count=1&language=de&format=json";
-                // Use reverse: find nearest city by searching coordinates
                 var reverseUrl = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&lon={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&format=json&zoom=10&accept-language=de";
                 var http = new HttpClient();
                 http.DefaultRequestHeaders.Add("User-Agent", "WPSimulator/1.0");
@@ -599,36 +590,7 @@
             catch { /* keep coordinate name */ }
 
             // Fetch weather from Open-Meteo Archive API using selected date range
-            var startStr = _startDate.ToString("yyyy-MM-dd");
-            var endStr = _endDate.ToString("yyyy-MM-dd");
-            var weatherUrl = $"https://archive-api.open-meteo.com/v1/archive?latitude={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&longitude={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&start_date={startStr}&end_date={endStr}&hourly=temperature_2m,relative_humidity_2m";
-            var weatherJson = await new HttpClient().GetStringAsync(weatherUrl);
-            var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
-            var hourly = weatherDoc.RootElement.GetProperty("hourly");
-            var temps = hourly.GetProperty("temperature_2m");
-            var rhs = hourly.GetProperty("relative_humidity_2m");
-            var times = hourly.GetProperty("time");
-
-            var data = new List<WeatherDataPoint>();
-            var years = new HashSet<int>();
-            for (int i = 0; i < temps.GetArrayLength(); i++)
-            {
-                int yr = _startDate.Year;
-                if (i < times.GetArrayLength())
-                {
-                    var ts = times[i].GetString();
-                    if (ts != null && ts.Length >= 4 && int.TryParse(ts[..4], out int parsedYr))
-                        yr = parsedYr;
-                }
-                years.Add(yr);
-                data.Add(new WeatherDataPoint
-                {
-                    Temperature = temps[i].ValueKind == System.Text.Json.JsonValueKind.Null ? 5.0 : temps[i].GetDouble(),
-                    RelativeHumidity = rhs[i].ValueKind == System.Text.Json.JsonValueKind.Null ? 80.0 : rhs[i].GetDouble(),
-                    Index = i,
-                    Year = yr
-                });
-            }
+            var (data, years) = await WeatherSvc.FetchOpenMeteoAsync(lat, lon, _startDate, _endDate);
 
             _geoLocationName = $"{cityName}";
             _selectedCity = "__geo__";
@@ -650,7 +612,7 @@
             }
 
             _statusText = cityName;
-            _statusSub = $"Open-Meteo {startStr} – {endStr} ({data.Count}h)";
+            _statusSub = $"Open-Meteo {_startDate:yyyy-MM-dd} – {_endDate:yyyy-MM-dd} ({data.Count}h)";
             _statusClass = "text-green-600";
 
             RunSimulation();

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using WaermepumpeSimulator.Models;
 
 namespace WaermepumpeSimulator.Services;
@@ -13,28 +15,66 @@ public class WeatherDataService
 
     public static List<ClimateProfile> GetClimateProfiles() =>
     [
-        new() { Key = "hamburg", Name = "Hamburg", DisplayName = "Hamburg (20095)", CsvFileName = "Hamburg.csv", Avg = 9.8, Amp = 16.0 },
-        new() { Key = "berlin", Name = "Berlin", DisplayName = "Berlin (10115)", CsvFileName = "Berlin.csv", Avg = 10.3, Amp = 19.5 },
-        new() { Key = "koeln", Name = "Köln", DisplayName = "Köln (50667)", CsvFileName = "Koeln.csv", Avg = 11.2, Amp = 15.5 },
-        new() { Key = "frankfurt", Name = "Frankfurt", DisplayName = "Frankfurt (60311)", CsvFileName = "Frankfurt.csv", Avg = 10.8, Amp = 18.0 },
-        new() { Key = "muenchen", Name = "München", DisplayName = "München (80331)", CsvFileName = "Muenchen.csv", Avg = 9.5, Amp = 21.0 },
-        new() { Key = "hof", Name = "Hof", DisplayName = "Hof (95028)", CsvFileName = "Hof.csv", Avg = 7.2, Amp = 20.0 },
-        new() { Key = "garmisch", Name = "Garmisch", DisplayName = "Garmisch (82467)", CsvFileName = "GarmischPartenkirchen.csv", Avg = 3.8, Amp = 14.0 },
+        new() { Key = "hamburg",   Name = "Hamburg",   DisplayName = "Hamburg (20095)",   Latitude = 53.55, Longitude = 9.99 },
+        new() { Key = "berlin",    Name = "Berlin",    DisplayName = "Berlin (10115)",    Latitude = 52.52, Longitude = 13.41 },
+        new() { Key = "koeln",     Name = "Köln",      DisplayName = "Köln (50667)",      Latitude = 50.94, Longitude = 6.96 },
+        new() { Key = "frankfurt", Name = "Frankfurt", DisplayName = "Frankfurt (60311)", Latitude = 50.11, Longitude = 8.68 },
+        new() { Key = "muenchen",  Name = "München",   DisplayName = "München (80331)",   Latitude = 48.14, Longitude = 11.58 },
+        new() { Key = "hof",       Name = "Hof",       DisplayName = "Hof (95028)",       Latitude = 50.31, Longitude = 11.91 },
+        new() { Key = "garmisch",  Name = "Garmisch",  DisplayName = "Garmisch (82467)",  Latitude = 47.50, Longitude = 11.10 },
     ];
 
-    public async Task<(List<WeatherDataPoint> data, bool isSynthetic, HashSet<int> years)> LoadPresetWeatherAsync(string cityKey)
+    public async Task<(List<WeatherDataPoint> data, bool isSynthetic, HashSet<int> years)> LoadPresetWeatherAsync(
+        string cityKey, DateTime startDate, DateTime endDate)
     {
-        var profile = GetClimateProfiles().Find(p => p.Key == cityKey) ?? GetClimateProfiles()[3]; // default frankfurt
-        try
-        {
-            var csvText = await _http.GetStringAsync($"data/weather/{profile.CsvFileName}");
-            var result = ParseCsv(csvText);
-            if (result.data.Count >= 100)
-                return (result.data, false, result.years);
-        }
-        catch { /* fall through to synthetic */ }
+        var profile = GetClimateProfiles().Find(p => p.Key == cityKey) ?? GetClimateProfiles()[3];
+        var (data, years) = await FetchOpenMeteoAsync(profile.Latitude, profile.Longitude, startDate, endDate);
+        if (data.Count > 0)
+            return (data, false, years);
 
-        return (GenerateSyntheticWeather(profile), true, new HashSet<int> { 2023 });
+        // Should not happen, but return empty as last resort
+        return ([], true, new HashSet<int>());
+    }
+
+    public async Task<(List<WeatherDataPoint> data, HashSet<int> years)> FetchOpenMeteoAsync(
+        double lat, double lon, DateTime startDate, DateTime endDate)
+    {
+        var latStr = lat.ToString(CultureInfo.InvariantCulture);
+        var lonStr = lon.ToString(CultureInfo.InvariantCulture);
+        var startStr = startDate.ToString("yyyy-MM-dd");
+        var endStr = endDate.ToString("yyyy-MM-dd");
+
+        var url = $"https://archive-api.open-meteo.com/v1/archive?latitude={latStr}&longitude={lonStr}&start_date={startStr}&end_date={endStr}&hourly=temperature_2m,relative_humidity_2m";
+        var json = await _http.GetStringAsync(url);
+        var doc = JsonDocument.Parse(json);
+        var hourly = doc.RootElement.GetProperty("hourly");
+        var temps = hourly.GetProperty("temperature_2m");
+        var rhs = hourly.GetProperty("relative_humidity_2m");
+        var times = hourly.GetProperty("time");
+
+        var data = new List<WeatherDataPoint>();
+        var years = new HashSet<int>();
+
+        for (int i = 0; i < temps.GetArrayLength(); i++)
+        {
+            int yr = startDate.Year;
+            if (i < times.GetArrayLength())
+            {
+                var ts = times[i].GetString();
+                if (ts is { Length: >= 4 } && int.TryParse(ts[..4], out int parsedYr))
+                    yr = parsedYr;
+            }
+            years.Add(yr);
+            data.Add(new WeatherDataPoint
+            {
+                Temperature = temps[i].ValueKind == JsonValueKind.Null ? 5.0 : temps[i].GetDouble(),
+                RelativeHumidity = i < rhs.GetArrayLength() && rhs[i].ValueKind != JsonValueKind.Null ? rhs[i].GetDouble() : 80.0,
+                Index = i,
+                Year = yr
+            });
+        }
+
+        return (data, years);
     }
 
     public (List<WeatherDataPoint> data, HashSet<int> years) ParseCsv(string csvRaw)
@@ -78,14 +118,12 @@ public class WeatherDataService
             var parts = lines[i].Split(',');
             if (parts.Length <= tempCol) continue;
 
-            if (!double.TryParse(parts[tempCol].Trim(), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out double t))
+            if (!double.TryParse(parts[tempCol].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double t))
                 continue;
 
             double rh = 80;
             if (rhCol >= 0 && rhCol < parts.Length)
-                double.TryParse(parts[rhCol].Trim(), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out rh);
+                double.TryParse(parts[rhCol].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out rh);
 
             int year = 2023;
             if (timeCol >= 0 && timeCol < parts.Length)
@@ -100,30 +138,6 @@ public class WeatherDataService
         }
 
         return (data, years);
-    }
-
-    public static List<WeatherDataPoint> GenerateSyntheticWeather(ClimateProfile profile)
-    {
-        var rng = new Random(42);
-        var data = new List<WeatherDataPoint>(8760);
-        for (int i = 0; i < 8760; i++)
-        {
-            int hour = i % 24;
-            double annualRad = ((i + 300.0) / 8760.0) * 2 * Math.PI;
-            double annualTemp = profile.Avg - profile.Amp * Math.Cos(annualRad);
-            double dailyRad = ((hour - 15.0) / 24.0) * 2 * Math.PI;
-            double dailyTemp = (3.5 + 2.5 * Math.Sin(annualRad)) * Math.Cos(dailyRad);
-            double t = annualTemp + dailyTemp + (rng.NextDouble() - 0.5) * 4.0;
-            double rhVal = 85 - 15 * Math.Sin(annualRad) - 15 * Math.Cos(dailyRad) + (rng.NextDouble() - 0.5) * 10;
-            data.Add(new WeatherDataPoint
-            {
-                Temperature = t,
-                RelativeHumidity = Math.Clamp(rhVal, 20, 100),
-                Index = i,
-                Year = 2023
-            });
-        }
-        return data;
     }
 
     public static List<WeatherDataPoint> FilterByYear(List<WeatherDataPoint> allData, string selectedYear)
