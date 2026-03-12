@@ -6,6 +6,18 @@
 
 <PageTitle>WP Simulator & JAZ Rechner</PageTitle>
 
+@if (_initializing)
+{
+    <div class="flex items-center justify-center h-screen">
+        <div class="text-center">
+            <div style="width:40px;height:40px;margin:0 auto 1rem;border:3px solid #f3f3f3;border-top:3px solid #3498db;border-radius:50%;animation:spin 1s linear infinite;"></div>
+            <p class="text-gray-500">Lade Simulator...</p>
+        </div>
+    </div>
+}
+else
+{
+
 <div class="flex flex-col h-screen overflow-hidden">
     <!-- Header -->
     <header class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-10 gap-4">
@@ -466,6 +478,8 @@
     </div>
 </div>
 
+}
+
 @code {
     private SimulationParameters Params { get; set; } = new();
     private SimulationResult? _result;
@@ -483,6 +497,7 @@
     private string _selectedPreset = "custom";
     private string _activeTab = "dashboard";
 
+    private bool _initializing = true;
     private string _statusText = "Lade...";
     private string _statusSub = "-";
     private string _statusClass = "text-gray-500";
@@ -516,6 +531,7 @@
             await RestoreState();
             await LoadWeather();
             RunSimulation();
+            _initializing = false;
             StateHasChanged();
         }
         else
