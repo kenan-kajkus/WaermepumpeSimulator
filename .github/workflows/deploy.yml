@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  DEPLOY_PATH: C:\inetpub\waermepumpe
+  DEPLOY_PATH: C:\inetpub\wwwroot\waermepumpe
 
 jobs:
   deploy:
