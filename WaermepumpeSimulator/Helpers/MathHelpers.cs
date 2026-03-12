@@ -2,22 +2,23 @@ namespace WaermepumpeSimulator.Helpers;
 
 public static class MathHelpers
 {
-    public static double Interp(double x, double[] xp, double[] yp)
+    public static double Interp(double x, double[] knownX, double[] knownY)
     {
-        if (xp.Length == 0) return 0;
-        if (x <= xp[0]) return yp[0];
-        if (x >= xp[^1]) return yp[^1];
+        if (knownX.Length == 0) return 0;
+        if (x <= knownX[0]) return knownY[0];
+        if (x >= knownX[^1]) return knownY[^1];
         int i = 0;
-        while (i < xp.Length - 2 && x > xp[i + 1]) i++;
-        return yp[i] + (x - xp[i]) * (yp[i + 1] - yp[i]) / (xp[i + 1] - xp[i]);
+        while (i < knownX.Length - 2 && x > knownX[i + 1]) i++;
+        return knownY[i] + (x - knownX[i]) * (knownY[i + 1] - knownY[i]) / (knownX[i + 1] - knownX[i]);
     }
 
-    public static double CalculateDewPoint(double t, double rh)
+    public static double CalculateDewPoint(double temperature, double relativeHumidity)
     {
-        const double a = 17.62, b = 243.12;
-        double rhSafe = Math.Max(rh, 0.1);
-        double alpha = Math.Log(rhSafe / 100.0) + (a * t) / (b + t);
-        return (b * alpha) / (a - alpha);
+        const double magnusA = 17.62;
+        const double magnusB = 243.12;
+        double rhSafe = Math.Max(relativeHumidity, 0.1);
+        double alpha = Math.Log(rhSafe / 100.0) + (magnusA * temperature) / (magnusB + temperature);
+        return (magnusB * alpha) / (magnusA - alpha);
     }
 
     public static double Gelu(double x)
@@ -26,35 +27,35 @@ public static class MathHelpers
         return g > 0 ? Math.Log(1.0 + g) : g;
     }
 
-    public static double GetCarnotCop(double ta, double tv)
+    public static double GetCarnotCop(double sourceTemp, double flowTemp)
     {
-        double dt = Math.Max((tv + 273.15) - (ta + 273.15), 5.0);
-        return (tv + 273.15) / dt;
+        double deltaT = Math.Max((flowTemp + 273.15) - (sourceTemp + 273.15), 5.0);
+        return (flowTemp + 273.15) / deltaT;
     }
 
-    public static double GetMaxCop(double tv)
+    public static double GetMaxCop(double flowTemp)
     {
-        return Math.Max(2.0, 8.0 - (tv - 35.0) * 0.15);
+        return Math.Max(2.0, 8.0 - (flowTemp - 35.0) * 0.15);
     }
 
-    public static double GetFlatEta(double tq, List<double[]> pts)
+    public static double GetFlatEta(double sourceTemp, List<double[]> etaPoints)
     {
-        if (pts.Count == 0) return 0.4;
-        if (tq <= pts[0][0]) return pts[0][1];
-        if (tq >= pts[^1][0]) return pts[^1][1];
-        for (int i = 0; i < pts.Count - 1; i++)
+        if (etaPoints.Count == 0) return 0.4;
+        if (sourceTemp <= etaPoints[0][0]) return etaPoints[0][1];
+        if (sourceTemp >= etaPoints[^1][0]) return etaPoints[^1][1];
+        for (int i = 0; i < etaPoints.Count - 1; i++)
         {
-            if (tq >= pts[i][0] && tq <= pts[i + 1][0])
+            if (sourceTemp >= etaPoints[i][0] && sourceTemp <= etaPoints[i + 1][0])
             {
-                double f = (tq - pts[i][0]) / (pts[i + 1][0] - pts[i][0]);
-                return pts[i][1] + f * (pts[i + 1][1] - pts[i][1]);
+                double fraction = (sourceTemp - etaPoints[i][0]) / (etaPoints[i + 1][0] - etaPoints[i][0]);
+                return etaPoints[i][1] + fraction * (etaPoints[i + 1][1] - etaPoints[i][1]);
             }
         }
         return 0.4;
     }
 
     /// <summary>
-    /// Parse "x, y" lines from textarea text into sorted points.
+    /// Parse "temperature, power" lines from textarea text into sorted points.
     /// </summary>
     public static List<double[]> ParseTextAreaPoints(string text)
     {
@@ -75,7 +76,7 @@ public static class MathHelpers
     }
 
     /// <summary>
-    /// Parse "vl, at, cop" lines from textarea text.
+    /// Parse "flowTemp, outsideTemp, cop" lines from textarea text.
     /// </summary>
     public static List<double[]> ParseCopData(string text)
     {
@@ -85,11 +86,11 @@ public static class MathHelpers
         {
             var parts = line.Split(',');
             if (parts.Length >= 3 &&
-                double.TryParse(parts[0].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double tv) &&
-                double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double tq) &&
+                double.TryParse(parts[0].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double flowTemp) &&
+                double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double outsideTemp) &&
                 double.TryParse(parts[2].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double cop))
             {
-                points.Add([tv, tq, cop]);
+                points.Add([flowTemp, outsideTemp, cop]);
             }
         }
         return points;

@@ -8,7 +8,7 @@ public static class EvaluationService
     {
         var eval = new EvaluationResult();
         double jaz = res.Jaz;
-        double stabPct = res.HeizstabAnteil;
+        double stabPct = res.HeizstabShare;
         double cyclingPct = res.CyclingPercent;
 
         // JAZ
@@ -51,26 +51,26 @@ public static class EvaluationService
         }
 
         // Auslegung & Heizstab
-        double natCoverage = res.LoadAtNat > 0 ? (res.WpAtNat / res.LoadAtNat) * 100 : 100;
+        double natCoverage = res.LoadAtDesignTemp > 0 ? (res.HeatPumpPowerAtDesignTemp / res.LoadAtDesignTemp) * 100 : 100;
 
-        if (res.BivalenzTemp.HasValue && res.BivalenzTemp > -2.0)
+        if (res.BivalenceTemperature.HasValue && res.BivalenceTemperature > -2.0)
         {
             eval.StabColor = "red";
-            eval.StabText = $"<b>Unterdimensioniert!</b> Bivalenzpunkt ({res.BivalenzTemp:F1}°C) ist zu hoch. Deckt an NAT nur {natCoverage:F0}% der Last.";
+            eval.StabText = $"<b>Unterdimensioniert!</b> Bivalenzpunkt ({res.BivalenceTemperature:F1}°C) ist zu hoch. Deckt an NAT nur {natCoverage:F0}% der Last.";
         }
         else if (stabPct > 5.0)
         {
             eval.StabColor = "red";
             eval.StabText = $"Achtung: Heizstab frisst extrem viel Strom ({stabPct:F1}% Anteil an der Gesamtenergie p.a.).";
         }
-        else if (res.BivalenzTemp.HasValue && res.BivalenzTemp > -5.0)
+        else if (res.BivalenceTemperature.HasValue && res.BivalenceTemperature > -5.0)
         {
             eval.StabColor = "orange";
-            eval.StabText = $"Knapp bemessen. Heizstab greift ab {res.BivalenzTemp:F1}°C ein. Jahresanteil: {stabPct:F1}%.";
+            eval.StabText = $"Knapp bemessen. Heizstab greift ab {res.BivalenceTemperature:F1}°C ein. Jahresanteil: {stabPct:F1}%.";
         }
         else
         {
-            string bivText = res.BivalenzTemp.HasValue ? $"{res.BivalenzTemp:F1}°C" : "Keiner";
+            string bivText = res.BivalenceTemperature.HasValue ? $"{res.BivalenceTemperature:F1}°C" : "Keiner";
             eval.StabColor = "green";
             eval.StabText = $"Sehr gute Auslegung! Bivalenzpunkt bei {bivText}. Heizstab-Anteil minimal ({stabPct:F1}%).";
         }

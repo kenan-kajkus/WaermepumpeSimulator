@@ -38,11 +38,11 @@
         var r = Result;
 
         _p35 = []; _p55 = []; _pMin = [];
-        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
         {
-            _p35.Add(new XYPoint(r.LutTemps[i], r.WpP35[i]));
-            _p55.Add(new XYPoint(r.LutTemps[i], r.WpP55[i]));
-            _pMin.Add(new XYPoint(r.LutTemps[i], r.WpPMin[i]));
+            _p35.Add(new XYPoint(r.LookupTemperatures[i], r.PowerMaxAtVL35[i]));
+            _p55.Add(new XYPoint(r.LookupTemperatures[i], r.PowerMaxAtVL55[i]));
+            _pMin.Add(new XYPoint(r.LookupTemperatures[i], r.PowerMinCurve[i]));
         }
 
         _options = new ApexChartOptions<XYPoint>

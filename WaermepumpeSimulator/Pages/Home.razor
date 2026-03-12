@@ -298,10 +298,10 @@ else
                                         </td>
                                         <td class="px-4 py-2 text-gray-500">@entry.City</td>
                                         <td class="px-4 py-2 text-right font-bold text-blue-600">@entry.Jaz.ToString("F2")</td>
-                                        <td class="px-4 py-2 text-right">@Math.Round(entry.TotalStrom)</td>
-                                        <td class="px-4 py-2 text-right">@Math.Round(entry.KostenWp) €</td>
-                                        <td class="px-4 py-2 text-right @(entry.Ersparnis > 0 ? "text-green-600" : "text-red-600") font-semibold">@Math.Round(entry.Ersparnis) €</td>
-                                        <td class="px-4 py-2 text-right @(entry.HeizstabAnteil > 5 ? "text-red-500" : "")">@entry.HeizstabAnteil.ToString("F1")%</td>
+                                        <td class="px-4 py-2 text-right">@Math.Round(entry.TotalElectricity)</td>
+                                        <td class="px-4 py-2 text-right">@Math.Round(entry.CostHeatPump) €</td>
+                                        <td class="px-4 py-2 text-right @(entry.Savings > 0 ? "text-green-600" : "text-red-600") font-semibold">@Math.Round(entry.Savings) €</td>
+                                        <td class="px-4 py-2 text-right @(entry.HeizstabShare > 5 ? "text-red-500" : "")">@entry.HeizstabShare.ToString("F1")%</td>
                                         <td class="px-4 py-2 text-right @(entry.CyclingPercent > 20 ? "text-yellow-600" : "")">@entry.CyclingPercent.ToString("F1")%</td>
                                         <td class="px-4 py-2 text-right">@entry.IcingHours</td>
                                         <td class="px-4 py-2 text-center">
@@ -338,7 +338,7 @@ else
                             </div>
                             <div class="@GetBgClass(_eval.StabColor) p-3 rounded border @GetBorderClass(_eval.StabColor)">
                                 <p class="font-bold @GetTextClass(_eval.StabColor) uppercase text-[10px] mb-1">Auslegung & Heizstab</p>
-                                <div class="text-2xl font-black text-gray-800 mb-1">@_result.HeizstabAnteil.ToString("F1") % <span class="text-sm font-normal text-gray-500">p.a.</span></div>
+                                <div class="text-2xl font-black text-gray-800 mb-1">@_result.HeizstabShare.ToString("F1") % <span class="text-sm font-normal text-gray-500">p.a.</span></div>
                                 <p class="text-[11px] text-gray-700 leading-snug">@((MarkupString)_eval.StabText)</p>
                             </div>
                         </div>
@@ -359,16 +359,16 @@ else
                                 <div class="space-y-5 text-sm text-gray-700">
                                     <div>
                                         <div class="text-gray-500 mb-1">Heizlast Haus (@@NAT):</div>
-                                        <div class="font-bold text-purple-700 text-2xl">@_result.LoadAtNat.ToString("F1") kW</div>
+                                        <div class="font-bold text-purple-700 text-2xl">@_result.LoadAtDesignTemp.ToString("F1") kW</div>
                                     </div>
                                     <div>
                                         <div class="text-gray-500 mb-1">Max. Leistung WP (@@NAT):</div>
-                                        <div class="font-bold @(_result.WpAtNat >= _result.LoadAtNat ? "text-green-600" : _result.WpAtNat + Params.HeizstabMax >= _result.LoadAtNat ? "text-orange-500" : "text-red-600") text-2xl">@_result.WpAtNat.ToString("F1") kW</div>
+                                        <div class="font-bold @(_result.HeatPumpPowerAtDesignTemp >= _result.LoadAtDesignTemp ? "text-green-600" : _result.HeatPumpPowerAtDesignTemp + Params.HeizstabMax >= _result.LoadAtDesignTemp ? "text-orange-500" : "text-red-600") text-2xl">@_result.HeatPumpPowerAtDesignTemp.ToString("F1") kW</div>
                                     </div>
                                     <div class="border-t border-gray-100 pt-4 mt-2">
                                         <div class="text-[11px] text-gray-500 uppercase font-bold mb-1">Bivalenzpunkt</div>
                                         <div class="font-medium text-gray-800 mb-1">Heizstab-Einsatz nötig ab:</div>
-                                        <div class="font-bold text-red-600 text-3xl">@(_result.BivalenzTemp.HasValue ? $"{_result.BivalenzTemp:F1} °C" : "Keiner")</div>
+                                        <div class="font-bold text-red-600 text-3xl">@(_result.BivalenceTemperature.HasValue ? $"{_result.BivalenceTemperature:F1} °C" : "Keiner")</div>
                                     </div>
                                 </div>
                             </div>
@@ -395,20 +395,20 @@ else
                         </div>
                         <div class="bg-white p-4 rounded shadow border-t-4 border-orange-500 flex flex-col">
                             <div class="text-xs text-gray-500 uppercase font-bold mb-1">Stromverbrauch p.a.</div>
-                            <div class="text-3xl font-black text-gray-800">@Math.Round(_result.TotalStrom) <span class="text-base font-normal text-gray-500">kWh</span></div>
+                            <div class="text-3xl font-black text-gray-800">@Math.Round(_result.TotalElectricity) <span class="text-base font-normal text-gray-500">kWh</span></div>
                             <div class="flex justify-between text-[11px] mt-auto pt-2 border-t border-gray-100">
                                 <span class="text-gray-400">Heizstab-Anteil:</span>
-                                <span class="font-bold text-red-500">@_result.HeizstabAnteil.ToString("F1")%</span>
+                                <span class="font-bold text-red-500">@_result.HeizstabShare.ToString("F1")%</span>
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded shadow border-t-4 border-green-500 flex flex-col">
                             <div class="text-xs text-gray-500 uppercase font-bold mb-1">Finanzen (Ersparnis)</div>
-                            <div class="@(_result.Ersparnis > 0 ? "text-green-600" : "text-red-600") text-2xl font-black leading-none mb-2">
-                                @(_result.Ersparnis > 0 ? $"Ersparnis: {Math.Round(_result.Ersparnis)} €/Jahr" : $"Mehrkosten: {Math.Round(Math.Abs(_result.Ersparnis))} €/Jahr")
+                            <div class="@(_result.Savings > 0 ? "text-green-600" : "text-red-600") text-2xl font-black leading-none mb-2">
+                                @(_result.Savings > 0 ? $"Ersparnis: {Math.Round(_result.Savings)} €/Jahr" : $"Mehrkosten: {Math.Round(Math.Abs(_result.Savings))} €/Jahr")
                             </div>
                             <div class="text-[11px] text-gray-500 space-y-1 mt-auto border-t border-gray-100 pt-2">
-                                <div class="flex justify-between"><span>Alte Heizung:</span><span class="font-semibold">@Math.Round(_result.KostenAlt) €</span></div>
-                                <div class="flex justify-between"><span>Neu (WP):</span><span class="font-semibold text-blue-600">@Math.Round(_result.KostenWp) €</span></div>
+                                <div class="flex justify-between"><span>Alte Heizung:</span><span class="font-semibold">@Math.Round(_result.CostOldHeating) €</span></div>
+                                <div class="flex justify-between"><span>Neu (WP):</span><span class="font-semibold text-blue-600">@Math.Round(_result.CostHeatPump) €</span></div>
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded shadow border-t-4 border-yellow-400 flex flex-col">
@@ -832,16 +832,16 @@ else
             Name = presetName,
             City = cityName,
             Jaz = _result.Jaz,
-            TotalStrom = _result.TotalStrom,
-            TotalWaerme = _result.TotalWaerme,
-            HeizstabAnteil = _result.HeizstabAnteil,
-            KostenWp = _result.KostenWp,
-            Ersparnis = _result.Ersparnis,
+            TotalElectricity = _result.TotalElectricity,
+            TotalHeat = _result.TotalHeat,
+            HeizstabShare = _result.HeizstabShare,
+            CostHeatPump = _result.CostHeatPump,
+            Savings = _result.Savings,
             CyclingPercent = _result.CyclingPercent,
             IcingHours = _result.IcingHours,
             DeficitHours = _result.DeficitHours,
-            LoadAtNat = _result.LoadAtNat,
-            WpAtNat = _result.WpAtNat
+            LoadAtDesignTemp = _result.LoadAtDesignTemp,
+            HeatPumpPowerAtDesignTemp = _result.HeatPumpPowerAtDesignTemp
         });
         _ = SaveState();
     }

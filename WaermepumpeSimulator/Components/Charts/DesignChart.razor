@@ -39,15 +39,15 @@
         if (Result == null) return;
         var r = Result;
 
-        _demandLine = [new(r.PlotNat, r.LoadAtNat), new(r.PlotHeizgrenze, r.PlotLoadHg)];
+        _demandLine = [new(r.DesignTemperature, r.LoadAtDesignTemp), new(r.HeatingLimitTemperature, r.WarmwaterBaseLoad)];
 
         // Downsample LUT for chart performance (every 5th point)
         _wpLine = [];
         _wpPlusStab = [];
-        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
         {
-            _wpLine.Add(new(r.LutTemps[i], r.WpPMaxCustom[i]));
-            _wpPlusStab.Add(new(r.LutTemps[i], r.WpPMaxCustom[i] + HeizstabMax));
+            _wpLine.Add(new(r.LookupTemperatures[i], r.PowerMaxAdjusted[i]));
+            _wpPlusStab.Add(new(r.LookupTemperatures[i], r.PowerMaxAdjusted[i] + HeizstabMax));
         }
 
         _options = new ApexChartOptions<XYPoint>

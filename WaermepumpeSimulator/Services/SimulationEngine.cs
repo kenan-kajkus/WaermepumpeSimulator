@@ -5,248 +5,363 @@ namespace WaermepumpeSimulator.Services;
 
 public class SimulationEngine
 {
-    public SimulationResult Run(SimulationParameters p, List<WeatherDataPoint> weather)
+    private const int HoursPerYear = 8760;
+    private const double VorlaufLow = 35.0;
+    private const double VorlaufHigh = 55.0;
+    private const double P55ScalingFactor = 0.92;
+
+    public SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
-        // Build LUT range
-        var lutRange = new List<double>();
-        for (double t = -25; t <= 40; t += 0.5) lutRange.Add(t);
-        var lutArr = lutRange.ToArray();
+        var lookupTemps = BuildLookupTable();
+        var kennfeld = ParseKennfeld(parameters, lookupTemps);
+        var loadProfile = CalcLoadProfile(parameters, weather);
+        var result = InitResult(lookupTemps, kennfeld);
 
-        // Parse kennfeld
-        var rawPMax = MathHelpers.ParseTextAreaPoints(p.RawPMax);
-        var rawPMin = MathHelpers.ParseTextAreaPoints(p.RawPMin);
-        var rawCopData = MathHelpers.ParseCopData(p.RawCopData);
+        RunHourlySimulation(parameters, weather, lookupTemps, kennfeld, loadProfile, result);
+        CalcAggregates(result);
+        CalcDesignPoint(parameters, lookupTemps, kennfeld, loadProfile, result);
+        CalcCosts(parameters, result);
 
-        double[] pMaxX = rawPMax.Select(pt => pt[0]).ToArray();
-        double[] pMaxY = rawPMax.Select(pt => pt[1]).ToArray();
-        double[] pMinX = rawPMin.Count > 0 ? rawPMin.Select(pt => pt[0]).ToArray() : [];
-        double[] pMinY = rawPMin.Count > 0 ? rawPMin.Select(pt => pt[1]).ToArray() : [];
+        return result;
+    }
 
-        var p35Vals = lutArr.Select(t => MathHelpers.Interp(t, pMaxX, pMaxY)).ToArray();
-        var pMinVals = rawPMin.Count > 0
-            ? lutArr.Select(t => MathHelpers.Interp(t, pMinX, pMinY)).ToArray()
-            : p35Vals.Select(v => v * 0.25).ToArray();
+    // --- Lookup Table ---
 
-        // Eta points
-        var etaPoints35 = rawCopData
-            .Where(pt => Math.Abs(pt[0] - 35) < 5)
-            .Select(pt => new[] { pt[1], pt[2] / MathHelpers.GetCarnotCop(pt[1], pt[0]) })
-            .OrderBy(pt => pt[0])
+    private static double[] BuildLookupTable()
+    {
+        var temperatures = new List<double>();
+        for (double t = -25; t <= 40; t += 0.5) temperatures.Add(t);
+        return temperatures.ToArray();
+    }
+
+    // --- Kennfeld (characteristic map) ---
+
+    private record KennfeldCurves(
+        double[] PMax35, double[] PMax55,
+        double[] PMin35, double[] PMin55,
+        double[] PMaxCustom,
+        double[] Cop35, double[] Cop55,
+        double[] Eta35, double[] Eta55,
+        List<double[]> RawCopPoints);
+
+    private static KennfeldCurves ParseKennfeld(SimulationParameters parameters, double[] lookupTemps)
+    {
+        var rawPowerMax = MathHelpers.ParseTextAreaPoints(parameters.RawPMax);
+        var rawPowerMin = MathHelpers.ParseTextAreaPoints(parameters.RawPMin);
+        var rawCopData = MathHelpers.ParseCopData(parameters.RawCopData);
+
+        double[] powerMaxTemps = rawPowerMax.Select(point => point[0]).ToArray();
+        double[] powerMaxValues = rawPowerMax.Select(point => point[1]).ToArray();
+
+        var pMax35 = lookupTemps.Select(temp => MathHelpers.Interp(temp, powerMaxTemps, powerMaxValues)).ToArray();
+        var pMax55 = pMax35.Select(value => value * P55ScalingFactor).ToArray();
+
+        var pMin35 = rawPowerMin.Count > 0
+            ? lookupTemps.Select(temp => MathHelpers.Interp(temp,
+                rawPowerMin.Select(point => point[0]).ToArray(),
+                rawPowerMin.Select(point => point[1]).ToArray())).ToArray()
+            : pMax35.Select(value => value * 0.25).ToArray();
+        var pMin55 = pMin35.Select(value => value * P55ScalingFactor).ToArray();
+
+        var etaPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow);
+        var etaPoints55 = ExtractEtaPoints(rawCopData, VorlaufHigh);
+
+        var (cop35, eta35) = CalcCopCurve(lookupTemps, VorlaufLow, etaPoints35);
+        var (cop55, eta55) = CalcCopCurve(lookupTemps, VorlaufHigh, etaPoints55);
+
+        var pMaxCustom = CalcVorlaufAdjustedCurve(lookupTemps, pMax35, pMax55, parameters);
+
+        return new KennfeldCurves(pMax35, pMax55, pMin35, pMin55, pMaxCustom,
+            cop35, cop55, eta35, eta55, rawCopData);
+    }
+
+    private static List<double[]> ExtractEtaPoints(List<double[]> copData, double targetVorlauf)
+    {
+        return copData
+            .Where(point => Math.Abs(point[0] - targetVorlauf) < 5)
+            .Select(point => new[] { point[1], point[2] / MathHelpers.GetCarnotCop(point[1], point[0]) })
+            .OrderBy(point => point[0])
             .ToList();
+    }
 
-        var etaPoints55 = rawCopData
-            .Where(pt => Math.Abs(pt[0] - 55) < 5)
-            .Select(pt => new[] { pt[1], pt[2] / MathHelpers.GetCarnotCop(pt[1], pt[0]) })
-            .OrderBy(pt => pt[0])
-            .ToList();
-
-        // Calculate COP curves
-        var (cop35, eta35) = CalcCurve(lutArr, 35, etaPoints35);
-        var (cop55, eta55) = CalcCurve(lutArr, 55, etaPoints55);
-
-        var p55Vals = p35Vals.Select(v => v * 0.92).ToArray();
-        var pMin55Vals = pMinVals.Select(v => v * 0.92).ToArray();
-
-        // Custom p_max considering vorlauf
-        var pMaxCustom = new double[lutArr.Length];
-        for (int i = 0; i < lutArr.Length; i++)
+    private static double[] CalcVorlaufAdjustedCurve(double[] lookupTemps, double[] vals35, double[] vals55, SimulationParameters parameters)
+    {
+        var result = new double[lookupTemps.Length];
+        for (int i = 0; i < lookupTemps.Length; i++)
         {
-            double t = lutArr[i];
-            double vl = t < p.Heizgrenze
-                ? Math.Clamp(p.VorlaufMin + ((p.VorlaufMax - p.VorlaufMin) / (p.Heizgrenze - p.NormAussentemperatur)) * (p.Heizgrenze - t), p.VorlaufMin, p.VorlaufMax)
-                : p.VorlaufMin;
-            double fVl = vl <= 35 ? 0 : vl >= 55 ? 1 : (vl - 35) / 20.0;
-            pMaxCustom[i] = p35Vals[i] + fVl * (p55Vals[i] - p35Vals[i]);
+            double vorlauf = CalcVorlauf(lookupTemps[i], parameters);
+            double vorlaufBlend = VorlaufFactor(vorlauf);
+            result[i] = Lerp(vals35[i], vals55[i], vorlaufBlend);
         }
+        return result;
+    }
 
-        // Calculate load_per_k
+    // --- Load Profile ---
+
+    private record LoadProfile(double LoadPerKelvin, double WarmwaterPerHour);
+
+    private static LoadProfile CalcLoadProfile(SimulationParameters parameters, List<WeatherDataPoint> weather)
+    {
         double sumDeltaT = 0;
-        foreach (var w in weather)
-            if (w.Temperature < p.Heizgrenze) sumDeltaT += p.Heizgrenze - w.Temperature;
+        foreach (var weatherPoint in weather)
+            if (weatherPoint.Temperature < parameters.Heizgrenze)
+                sumDeltaT += parameters.Heizgrenze - weatherPoint.Temperature;
 
-        double loadPerK = sumDeltaT > 0 ? (p.Jahresverbrauch * p.Wirkungsgrad * (1 - p.WarmwasserAnteil / 100.0)) / sumDeltaT : 0;
-        double wwLastH = (p.Jahresverbrauch * p.Wirkungsgrad * p.WarmwasserAnteil / 100.0) / 8760.0;
+        double heatingShare = 1.0 - parameters.WarmwasserAnteil / 100.0;
+        double totalUsableHeat = parameters.Jahresverbrauch * parameters.Wirkungsgrad;
 
-        // Hourly simulation
-        int n = 8760;
-        var res = new SimulationResult
+        double loadPerKelvin = sumDeltaT > 0 ? (totalUsableHeat * heatingShare) / sumDeltaT : 0;
+        double warmwaterPerHour = (totalUsableHeat * (parameters.WarmwasserAnteil / 100.0)) / HoursPerYear;
+
+        return new LoadProfile(loadPerKelvin, warmwaterPerHour);
+    }
+
+    // --- Hourly Simulation ---
+
+    private static void RunHourlySimulation(
+        SimulationParameters parameters, List<WeatherDataPoint> weather,
+        double[] lookupTemps, KennfeldCurves kennfeld, LoadProfile load, SimulationResult result)
+    {
+        int icingHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
+        double smoothedOutsideTemp = 5.0;
+
+        for (int hour = 0; hour < HoursPerYear; hour++)
         {
-            Temperature = new double[n],
-            RelativeHumidity = new double[n],
-            DewPoint = new double[n],
-            Load = new double[n],
-            Cop = new double[n],
-            ThermalPower = new double[n],
-            ElectricalPower = new double[n],
-            HeizstabPower = new double[n],
-            Deficit = new double[n],
-            Icing = new int[n],
-            Cycling = new int[n],
-            PMaxAvail = new double[n],
-            PMinAvail = new double[n],
-            LutTemps = lutArr,
-            WpP35 = p35Vals,
-            WpP55 = p55Vals,
-            WpPMin = pMinVals,
-            WpPMaxCustom = pMaxCustom,
-            WpCop35 = cop35,
-            WpCop55 = cop55,
-            WpEta35 = eta35,
-            WpEta55 = eta55,
-            RawCopPoints = rawCopData,
-        };
+            var weatherPoint = weather[hour];
+            double outsideTemp = weatherPoint.Temperature;
+            double humidity = weatherPoint.RelativeHumidity;
+            double dewPoint = MathHelpers.CalculateDewPoint(outsideTemp, humidity);
+            int hourOfDay = hour % 24;
+            smoothedOutsideTemp = smoothedOutsideTemp * 0.96 + outsideTemp * 0.04;
 
-        int icingHours = 0, cyclingHoursCount = 0, totalHeatingHours = 0;
-        double tAvg = 5.0;
+            // Heating load & vorlauf for this hour
+            var (heatingLoad, vorlauf) = CalcHourlyLoad(parameters, outsideTemp, smoothedOutsideTemp, hourOfDay, load);
+            double totalLoad = heatingLoad + load.WarmwaterPerHour;
 
-        for (int i = 0; i < n; i++)
-        {
-            var w = weather[i];
-            double tA = w.Temperature, rh = w.RelativeHumidity;
-            double tp = MathHelpers.CalculateDewPoint(tA, rh);
-            int hour = i % 24;
-            tAvg = tAvg * 0.96 + tA * 0.04;
+            // Available power at current conditions
+            double vorlaufBlend = VorlaufFactor(vorlauf);
+            double maxPowerAvail = LerpInterp(outsideTemp, lookupTemps, kennfeld.PMax35, kennfeld.PMax55, vorlaufBlend);
+            double minPowerAvail = LerpInterp(outsideTemp, lookupTemps, kennfeld.PMin35, kennfeld.PMin55, vorlaufBlend);
 
-            bool isNight = false;
-            if (p.NachtabsenkungAktiv)
-                isNight = p.NachtStart > p.NachtEnde
-                    ? (hour >= p.NachtStart || hour < p.NachtEnde)
-                    : (hour >= p.NachtStart && hour < p.NachtEnde);
+            // Icing detection
+            var (isIcing, icingPenalty) = DetectIcing(outsideTemp, humidity, dewPoint, totalLoad, minPowerAvail, maxPowerAvail);
+            if (isIcing) icingHoursTotal++;
 
-            double lH = 0, vl = p.WarmwasserTemp;
-            if (tAvg < p.Heizgrenze)
-            {
-                lH = Math.Max(0, (p.Heizgrenze - tA) * loadPerK);
-                double steigung = (p.VorlaufMax - p.VorlaufMin) / (p.Heizgrenze - p.NormAussentemperatur);
-                vl = p.VorlaufMin + steigung * (p.Heizgrenze - tA);
-                if (isNight)
-                {
-                    lH *= Math.Max(0.0, (p.RaumSollTemperatur - p.NachtDeltaT) - tA) / Math.Max(0.1, p.RaumSollTemperatur - tA);
-                    vl -= steigung * p.NachtDeltaT * 1.5;
-                }
-                vl = Math.Clamp(vl, p.VorlaufMin, p.VorlaufMax);
-            }
+            // Cycling detection
+            bool isHeating = heatingLoad > 0.1;
+            bool isCycling = isHeating && totalLoad < minPowerAvail;
+            if (isHeating) heatingHoursTotal++;
+            if (isCycling) cyclingHoursTotal++;
 
-            double lGes = lH + wwLastH;
-            double fVl = vl <= 35 ? 0 : vl >= 55 ? 1 : (vl - 35) / 20.0;
-            double pMaxAvail = MathHelpers.Interp(tA, lutArr, p35Vals) + fVl * (MathHelpers.Interp(tA, lutArr, p55Vals) - MathHelpers.Interp(tA, lutArr, p35Vals));
-            double pMinAvail = MathHelpers.Interp(tA, lutArr, pMinVals) + fVl * (MathHelpers.Interp(tA, lutArr, pMin55Vals) - MathHelpers.Interp(tA, lutArr, pMinVals));
+            // COP at current conditions
+            double cop = LerpInterp(outsideTemp, lookupTemps, kennfeld.Cop35, kennfeld.Cop55, vorlaufBlend) * icingPenalty;
 
-            int isIcing = 0;
-            double penalty = 1.0;
-            if (lGes > pMinAvail * 1.2)
-            {
-                double loadFactor = pMaxAvail > 0 ? Math.Min(1.0, lGes / pMaxAvail) : 1.0;
-                double tEvap = tA - (0.5 + 3.0 * loadFactor);
-                if (tEvap < -0.5 && tEvap < tp && rh > 88 && tA >= -4 && tA <= 3)
-                {
-                    isIcing = 1;
-                    icingHours++;
-                    penalty = 1.0 - 0.15 * loadFactor;
-                }
-            }
+            // Power balance
+            var (thermal, electrical, heizstab, deficit) = CalcPowerBalance(totalLoad, maxPowerAvail, cop, parameters.HeizstabMax);
 
-            if (lH > 0.1)
-            {
-                totalHeatingHours++;
-                if (lGes < pMinAvail) cyclingHoursCount++;
-            }
-
-            double copReal = (MathHelpers.Interp(tA, lutArr, cop35) + fVl * (MathHelpers.Interp(tA, lutArr, cop55) - MathHelpers.Interp(tA, lutArr, cop35))) * penalty;
-
-            double pTh = 0, pEl = 0, stab = 0, deficit = 0;
-            if (lGes > 0.001)
-            {
-                if (pMaxAvail >= lGes) { pTh = lGes; pEl = lGes / copReal; }
-                else
-                {
-                    pTh = pMaxAvail; pEl = pMaxAvail / copReal;
-                    stab = Math.Min(lGes - pMaxAvail, p.HeizstabMax);
-                    deficit = (lGes - pMaxAvail) - stab;
-                }
-            }
-
-            res.Temperature[i] = tA;
-            res.RelativeHumidity[i] = rh;
-            res.DewPoint[i] = tp;
-            res.Load[i] = lGes;
-            res.Cop[i] = copReal;
-            res.ThermalPower[i] = pTh;
-            res.ElectricalPower[i] = pEl;
-            res.HeizstabPower[i] = stab;
-            res.Deficit[i] = deficit;
-            res.Icing[i] = isIcing;
-            res.Cycling[i] = lH > 0.1 && lGes < pMinAvail ? 1 : 0;
-            res.PMaxAvail[i] = pMaxAvail;
-            res.PMinAvail[i] = pMinAvail;
+            // Store hourly results
+            result.Temperature[hour] = outsideTemp;
+            result.RelativeHumidity[hour] = humidity;
+            result.DewPoint[hour] = dewPoint;
+            result.Load[hour] = totalLoad;
+            result.Cop[hour] = cop;
+            result.ThermalPower[hour] = thermal;
+            result.ElectricalPower[hour] = electrical;
+            result.HeizstabPower[hour] = heizstab;
+            result.Deficit[hour] = deficit;
+            result.Icing[hour] = isIcing ? 1 : 0;
+            result.Cycling[hour] = isCycling ? 1 : 0;
+            result.MaxPowerAvailable[hour] = maxPowerAvail;
+            result.MinPowerAvailable[hour] = minPowerAvail;
         }
 
-        // Aggregation
-        double sumTh = res.ThermalPower.Sum() + res.HeizstabPower.Sum();
-        double sumEl = res.ElectricalPower.Sum() + res.HeizstabPower.Sum();
-        double sumStab = res.HeizstabPower.Sum();
-        int hoursDeficit = res.Deficit.Count(d => d > 0.1);
+        result.IcingHours = icingHoursTotal;
+        result.CyclingPercent = heatingHoursTotal > 0 ? (cyclingHoursTotal / (double)heatingHoursTotal) * 100 : 0;
+    }
 
-        res.Jaz = sumEl > 0 ? sumTh / sumEl : 0;
-        res.TotalStrom = sumEl;
-        res.TotalWaerme = sumTh;
-        res.HeizstabAnteil = sumTh > 0 ? (sumStab / sumTh) * 100 : 0;
-        res.IcingHours = icingHours;
-        res.CyclingPercent = totalHeatingHours > 0 ? (cyclingHoursCount / (double)totalHeatingHours) * 100 : 0;
-        res.DeficitHours = hoursDeficit;
-        res.DeficitKwh = res.Deficit.Sum();
+    private static (double heatingLoad, double vorlauf) CalcHourlyLoad(
+        SimulationParameters parameters, double outsideTemp, double smoothedTemp, int hourOfDay, LoadProfile load)
+    {
+        if (smoothedTemp >= parameters.Heizgrenze)
+            return (0, parameters.WarmwasserTemp);
 
-        // Auslegung
-        double loadAtNat = (p.Heizgrenze - p.NormAussentemperatur) * loadPerK + wwLastH;
-        double vlNat = p.VorlaufMax;
-        double fVlNat = vlNat <= 35 ? 0 : vlNat >= 55 ? 1 : (vlNat - 35) / 20.0;
-        double wpAtNat = MathHelpers.Interp(p.NormAussentemperatur, lutArr, p35Vals) + fVlNat * (MathHelpers.Interp(p.NormAussentemperatur, lutArr, p55Vals) - MathHelpers.Interp(p.NormAussentemperatur, lutArr, p35Vals));
+        double heatingLoad = Math.Max(0, (parameters.Heizgrenze - outsideTemp) * load.LoadPerKelvin);
+        double heatingCurveSlope = (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur);
+        double vorlauf = parameters.VorlaufMin + heatingCurveSlope * (parameters.Heizgrenze - outsideTemp);
 
-        res.LoadAtNat = loadAtNat;
-        res.WpAtNat = wpAtNat;
-        res.PlotNat = p.NormAussentemperatur;
-        res.PlotHeizgrenze = p.Heizgrenze;
-        res.PlotLoadHg = wwLastH;
-
-        // Bivalenzpunkt
-        for (double t = p.Heizgrenze; t >= -25; t -= 0.1)
+        if (parameters.NachtabsenkungAktiv && IsNightHour(hourOfDay, parameters.NachtStart, parameters.NachtEnde))
         {
-            double currentLoad = (p.Heizgrenze - t) * loadPerK + wwLastH;
-            int idx = Array.FindIndex(lutArr, val => val >= t);
+            double roomReduction = Math.Max(0.0, (parameters.RaumSollTemperatur - parameters.NachtDeltaT) - outsideTemp)
+                                   / Math.Max(0.1, parameters.RaumSollTemperatur - outsideTemp);
+            heatingLoad *= roomReduction;
+            vorlauf -= heatingCurveSlope * parameters.NachtDeltaT * 1.5;
+        }
+
+        vorlauf = Math.Clamp(vorlauf, parameters.VorlaufMin, parameters.VorlaufMax);
+        return (heatingLoad, vorlauf);
+    }
+
+    private static (bool isIcing, double penalty) DetectIcing(
+        double outsideTemp, double humidity, double dewPoint,
+        double totalLoad, double minPowerAvail, double maxPowerAvail)
+    {
+        if (totalLoad <= minPowerAvail * 1.2)
+            return (false, 1.0);
+
+        double loadFactor = maxPowerAvail > 0 ? Math.Min(1.0, totalLoad / maxPowerAvail) : 1.0;
+        double evaporatorTemp = outsideTemp - (0.5 + 3.0 * loadFactor);
+
+        bool isIcing = evaporatorTemp < -0.5
+                       && evaporatorTemp < dewPoint
+                       && humidity > 88
+                       && outsideTemp is >= -4 and <= 3;
+
+        double penalty = isIcing ? 1.0 - 0.15 * loadFactor : 1.0;
+        return (isIcing, penalty);
+    }
+
+    private static (double thermal, double electrical, double heizstab, double deficit) CalcPowerBalance(
+        double totalLoad, double maxPowerAvail, double cop, double heizstabMax)
+    {
+        if (totalLoad <= 0.001)
+            return (0, 0, 0, 0);
+
+        if (maxPowerAvail >= totalLoad)
+            return (totalLoad, totalLoad / cop, 0, 0);
+
+        double thermal = maxPowerAvail;
+        double electrical = maxPowerAvail / cop;
+        double gap = totalLoad - maxPowerAvail;
+        double heizstab = Math.Min(gap, heizstabMax);
+        double deficit = gap - heizstab;
+        return (thermal, electrical, heizstab, deficit);
+    }
+
+    // --- Aggregation ---
+
+    private static void CalcAggregates(SimulationResult result)
+    {
+        double totalThermal = result.ThermalPower.Sum() + result.HeizstabPower.Sum();
+        double totalElectrical = result.ElectricalPower.Sum() + result.HeizstabPower.Sum();
+        double totalHeizstab = result.HeizstabPower.Sum();
+
+        result.Jaz = totalElectrical > 0 ? totalThermal / totalElectrical : 0;
+        result.TotalElectricity = totalElectrical;
+        result.TotalHeat = totalThermal;
+        result.HeizstabShare = totalThermal > 0 ? (totalHeizstab / totalThermal) * 100 : 0;
+        result.DeficitHours = result.Deficit.Count(d => d > 0.1);
+        result.DeficitKwh = result.Deficit.Sum();
+    }
+
+    // --- Design Point (Auslegung) ---
+
+    private static void CalcDesignPoint(
+        SimulationParameters parameters, double[] lookupTemps, KennfeldCurves kennfeld, LoadProfile load, SimulationResult result)
+    {
+        double loadAtDesign = (parameters.Heizgrenze - parameters.NormAussentemperatur) * load.LoadPerKelvin + load.WarmwaterPerHour;
+        double vorlaufBlendAtDesign = VorlaufFactor(parameters.VorlaufMax);
+        double heatPumpPowerAtDesign = LerpInterp(parameters.NormAussentemperatur, lookupTemps, kennfeld.PMax35, kennfeld.PMax55, vorlaufBlendAtDesign);
+
+        result.LoadAtDesignTemp = loadAtDesign;
+        result.HeatPumpPowerAtDesignTemp = heatPumpPowerAtDesign;
+        result.DesignTemperature = parameters.NormAussentemperatur;
+        result.HeatingLimitTemperature = parameters.Heizgrenze;
+        result.WarmwaterBaseLoad = load.WarmwaterPerHour;
+
+        // Bivalence point: where load exceeds WP capacity
+        for (double temp = parameters.Heizgrenze; temp >= -25; temp -= 0.1)
+        {
+            double currentLoad = (parameters.Heizgrenze - temp) * load.LoadPerKelvin + load.WarmwaterPerHour;
+            int idx = Array.FindIndex(lookupTemps, val => val >= temp);
             if (idx == -1) idx = 0;
-            double currentPMax = pMaxCustom[idx];
-            if (currentLoad > currentPMax)
+            if (currentLoad > kennfeld.PMaxCustom[idx])
             {
-                res.BivalenzTemp = Math.Round(t, 1);
-                res.BivalenzPower = currentLoad;
+                result.BivalenceTemperature = Math.Round(temp, 1);
+                result.BivalencePower = currentLoad;
                 break;
             }
         }
-
-        // Kosten
-        res.KostenWp = sumEl * p.PreisStrom;
-        res.KostenAlt = p.Jahresverbrauch * p.PreisAlt;
-        res.Ersparnis = res.KostenAlt - res.KostenWp;
-
-        return res;
     }
 
-    private static (double[] cop, double[] eta) CalcCurve(double[] lutRange, double tv, List<double[]> etaPts)
-    {
-        double maxCop = MathHelpers.GetMaxCop(tv);
-        var arrCop = new double[lutRange.Length];
-        var arrEta = new double[lutRange.Length];
+    // --- Costs ---
 
-        for (int i = 0; i < lutRange.Length; i++)
+    private static void CalcCosts(SimulationParameters parameters, SimulationResult result)
+    {
+        result.CostHeatPump = result.TotalElectricity * parameters.PreisStrom;
+        result.CostOldHeating = parameters.Jahresverbrauch * parameters.PreisAlt;
+        result.Savings = result.CostOldHeating - result.CostHeatPump;
+    }
+
+    // --- COP Curve Calculation ---
+
+    private static (double[] cop, double[] eta) CalcCopCurve(double[] lookupTemps, double flowTemp, List<double[]> etaPoints)
+    {
+        double maxCop = MathHelpers.GetMaxCop(flowTemp);
+        var cop = new double[lookupTemps.Length];
+        var eta = new double[lookupTemps.Length];
+
+        for (int i = 0; i < lookupTemps.Length; i++)
         {
-            double tq = lutRange[i];
-            double tqCalc = Math.Min(tq, 15.0);
-            double rawEta = MathHelpers.GetFlatEta(tqCalc, etaPts);
-            double cop = Math.Clamp(rawEta * MathHelpers.GetCarnotCop(tqCalc, tv), 1.0, maxCop);
-            arrCop[i] = cop;
-            arrEta[i] = cop / MathHelpers.GetCarnotCop(tq, tv);
+            double sourceTemp = lookupTemps[i];
+            double sourceTempClamped = Math.Min(sourceTemp, 15.0);
+            double rawEta = MathHelpers.GetFlatEta(sourceTempClamped, etaPoints);
+            cop[i] = Math.Clamp(rawEta * MathHelpers.GetCarnotCop(sourceTempClamped, flowTemp), 1.0, maxCop);
+            eta[i] = cop[i] / MathHelpers.GetCarnotCop(sourceTemp, flowTemp);
         }
 
-        return (arrCop, arrEta);
+        return (cop, eta);
     }
+
+    // --- Helpers ---
+
+    private static SimulationResult InitResult(double[] lookupTemps, KennfeldCurves kennfeld)
+    {
+        return new SimulationResult
+        {
+            Temperature = new double[HoursPerYear],
+            RelativeHumidity = new double[HoursPerYear],
+            DewPoint = new double[HoursPerYear],
+            Load = new double[HoursPerYear],
+            Cop = new double[HoursPerYear],
+            ThermalPower = new double[HoursPerYear],
+            ElectricalPower = new double[HoursPerYear],
+            HeizstabPower = new double[HoursPerYear],
+            Deficit = new double[HoursPerYear],
+            Icing = new int[HoursPerYear],
+            Cycling = new int[HoursPerYear],
+            MaxPowerAvailable = new double[HoursPerYear],
+            MinPowerAvailable = new double[HoursPerYear],
+            LookupTemperatures = lookupTemps,
+            PowerMaxAtVL35 = kennfeld.PMax35,
+            PowerMaxAtVL55 = kennfeld.PMax55,
+            PowerMinCurve = kennfeld.PMin35,
+            PowerMaxAdjusted = kennfeld.PMaxCustom,
+            CopAtVL35 = kennfeld.Cop35,
+            CopAtVL55 = kennfeld.Cop55,
+            EtaAtVL35 = kennfeld.Eta35,
+            EtaAtVL55 = kennfeld.Eta55,
+            RawCopPoints = kennfeld.RawCopPoints,
+        };
+    }
+
+    private static double CalcVorlauf(double outsideTemp, SimulationParameters parameters)
+    {
+        if (outsideTemp >= parameters.Heizgrenze)
+            return parameters.VorlaufMin;
+        double slope = (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur);
+        return Math.Clamp(parameters.VorlaufMin + slope * (parameters.Heizgrenze - outsideTemp), parameters.VorlaufMin, parameters.VorlaufMax);
+    }
+
+    private static double VorlaufFactor(double vorlauf)
+        => vorlauf <= VorlaufLow ? 0 : vorlauf >= VorlaufHigh ? 1 : (vorlauf - VorlaufLow) / (VorlaufHigh - VorlaufLow);
+
+    private static double Lerp(double valueA, double valueB, double blend) => valueA + blend * (valueB - valueA);
+
+    private static double LerpInterp(double outsideTemp, double[] lookupTemps, double[] vals35, double[] vals55, double vorlaufBlend)
+        => Lerp(MathHelpers.Interp(outsideTemp, lookupTemps, vals35), MathHelpers.Interp(outsideTemp, lookupTemps, vals55), vorlaufBlend);
+
+    private static bool IsNightHour(int hourOfDay, int nightStart, int nightEnd)
+        => nightStart > nightEnd
+            ? (hourOfDay >= nightStart || hourOfDay < nightEnd)
+            : (hourOfDay >= nightStart && hourOfDay < nightEnd);
 }

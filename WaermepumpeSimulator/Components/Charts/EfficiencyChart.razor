@@ -66,10 +66,10 @@
 
         _limitLine = [];
         _minLine = [];
-        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
         {
-            _limitLine.Add(new ScatterPoint(r.LutTemps[i], r.WpPMaxCustom[i], ""));
-            _minLine.Add(new ScatterPoint(r.LutTemps[i], r.WpPMin[i], ""));
+            _limitLine.Add(new ScatterPoint(r.LookupTemperatures[i], r.PowerMaxAdjusted[i], ""));
+            _minLine.Add(new ScatterPoint(r.LookupTemperatures[i], r.PowerMinCurve[i], ""));
         }
 
         _options = new ApexChartOptions<ScatterPoint>

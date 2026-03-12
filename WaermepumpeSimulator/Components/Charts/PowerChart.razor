@@ -40,7 +40,7 @@
         if (Result == null) return;
         var r = Result;
         var rollL = RollingAvg(r.Load, 24);
-        var rollMin = RollingAvg(r.PMinAvail, 24);
+        var rollMin = RollingAvg(r.MinPowerAvailable, 24);
 
         _loadData = [];
         _minData = [];

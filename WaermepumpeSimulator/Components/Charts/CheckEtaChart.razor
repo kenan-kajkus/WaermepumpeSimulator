@@ -45,10 +45,10 @@
         var r = Result;
 
         _eta35 = []; _eta55 = [];
-        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
         {
-            _eta35.Add(new XYPoint(r.LutTemps[i], r.WpEta35[i]));
-            _eta55.Add(new XYPoint(r.LutTemps[i], r.WpEta55[i]));
+            _eta35.Add(new XYPoint(r.LookupTemperatures[i], r.EtaAtVL35[i]));
+            _eta55.Add(new XYPoint(r.LookupTemperatures[i], r.EtaAtVL55[i]));
         }
 
         _pts35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10)
