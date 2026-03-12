@@ -29,6 +29,17 @@
     </div>
 
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        window.blazorGetLocation = function () {
+            return new Promise(function (resolve, reject) {
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) { resolve([pos.coords.latitude, pos.coords.longitude]); },
+                    function (err) { reject(err.message); },
+                    { timeout: 10000 }
+                );
+            });
+        };
+    </script>
 
     <style>
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

@@ -35,12 +35,15 @@
                 </button>
             </div>
 
-            @if (_availableYears.Count > 1)
+            @if (_availableYears.Count > 0)
             {
                 <div class="relative flex items-center">
                     <span class="text-xs text-gray-500 mr-2">Jahr:</span>
-                    <select @bind="_selectedYear" @bind:after="OnYearChanged" class="border border-gray-300 rounded px-2 py-2 text-xs w-24 focus:outline-none focus:border-blue-500 bg-white">
-                        <option value="all">Alle (Durchschnitt)</option>
+                    <select @bind="_selectedYear" @bind:after="OnYearChanged" disabled="@(_availableYears.Count <= 1)" class="border border-gray-300 rounded px-2 py-2 text-xs w-24 focus:outline-none focus:border-blue-500 bg-white">
+                        @if (_availableYears.Count > 1)
+                        {
+                            <option value="all">Alle (Durchschnitt)</option>
+                        }
                         @foreach (var y in _availableYears.OrderBy(x => x))
                         {
                             <option value="@y">@y</option>
@@ -48,6 +51,15 @@
                     </select>
                 </div>
             }
+
+            <div class="relative flex items-center">
+                <span class="text-xs text-gray-500 mr-2">Von:</span>
+                <input type="date" @bind="_startDate" class="border border-gray-300 rounded px-1 py-1.5 text-xs focus:outline-none focus:border-blue-500 bg-white" />
+            </div>
+            <div class="relative flex items-center">
+                <span class="text-xs text-gray-500 mr-2">Bis:</span>
+                <input type="date" @bind="_endDate" class="border border-gray-300 rounded px-1 py-1.5 text-xs focus:outline-none focus:border-blue-500 bg-white" />
+            </div>
 
             <div class="hidden lg:block text-xs text-right mx-2 leading-tight w-24">
                 <div class="@_statusClass font-medium">@_statusText</div>
@@ -477,6 +489,8 @@
 
     private string? _geoLocationName;
     private bool _geoLoading;
+    private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
+    private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
     private readonly Dictionary<string, string> _tabs = new()
     {
@@ -541,8 +555,116 @@
 
     private async Task OnLocationChanged()
     {
+        if (_selectedCity == "__geo__")
+        {
+            // Already loaded geo data, just re-run
+            RunSimulation();
+            return;
+        }
         await LoadWeather();
         RunSimulation();
+    }
+
+    private async Task UseMyLocation()
+    {
+        _geoLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Get browser geolocation
+            var coords = await JS.InvokeAsync<double[]>("blazorGetLocation");
+
+            double lat = coords[0], lon = coords[1];
+
+            // Reverse geocode via Open-Meteo geocoding
+            string cityName = $"{lat:F2}°N, {lon:F2}°E";
+            try
+            {
+                var geoUrl = $"https://geocoding-api.open-meteo.com/v1/search?latitude={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&longitude={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&count=1&language=de&format=json";
+                // Use reverse: find nearest city by searching coordinates
+                var reverseUrl = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&lon={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&format=json&zoom=10&accept-language=de";
+                var http = new HttpClient();
+                http.DefaultRequestHeaders.Add("User-Agent", "WPSimulator/1.0");
+                var geoJson = await http.GetStringAsync(reverseUrl);
+                var doc = System.Text.Json.JsonDocument.Parse(geoJson);
+                if (doc.RootElement.TryGetProperty("address", out var addr))
+                {
+                    cityName = addr.TryGetProperty("city", out var city) ? city.GetString()!
+                        : addr.TryGetProperty("town", out var town) ? town.GetString()!
+                        : addr.TryGetProperty("village", out var village) ? village.GetString()!
+                        : cityName;
+                }
+            }
+            catch { /* keep coordinate name */ }
+
+            // Fetch weather from Open-Meteo Archive API using selected date range
+            var startStr = _startDate.ToString("yyyy-MM-dd");
+            var endStr = _endDate.ToString("yyyy-MM-dd");
+            var weatherUrl = $"https://archive-api.open-meteo.com/v1/archive?latitude={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&longitude={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}&start_date={startStr}&end_date={endStr}&hourly=temperature_2m,relative_humidity_2m";
+            var weatherJson = await new HttpClient().GetStringAsync(weatherUrl);
+            var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
+            var hourly = weatherDoc.RootElement.GetProperty("hourly");
+            var temps = hourly.GetProperty("temperature_2m");
+            var rhs = hourly.GetProperty("relative_humidity_2m");
+            var times = hourly.GetProperty("time");
+
+            var data = new List<WeatherDataPoint>();
+            var years = new HashSet<int>();
+            for (int i = 0; i < temps.GetArrayLength(); i++)
+            {
+                int yr = _startDate.Year;
+                if (i < times.GetArrayLength())
+                {
+                    var ts = times[i].GetString();
+                    if (ts != null && ts.Length >= 4 && int.TryParse(ts[..4], out int parsedYr))
+                        yr = parsedYr;
+                }
+                years.Add(yr);
+                data.Add(new WeatherDataPoint
+                {
+                    Temperature = temps[i].ValueKind == System.Text.Json.JsonValueKind.Null ? 5.0 : temps[i].GetDouble(),
+                    RelativeHumidity = rhs[i].ValueKind == System.Text.Json.JsonValueKind.Null ? 80.0 : rhs[i].GetDouble(),
+                    Index = i,
+                    Year = yr
+                });
+            }
+
+            _geoLocationName = $"{cityName}";
+            _selectedCity = "__geo__";
+            _allWeatherData = data;
+            _availableYears = years;
+
+            if (years.Count > 1)
+            {
+                _selectedYear = years.Max().ToString();
+                _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
+            }
+            else
+            {
+                _selectedYear = years.First().ToString();
+                _weatherData = data;
+                // Pad to 8760 if needed
+                while (_weatherData.Count < 8760)
+                    _weatherData.Add(new WeatherDataPoint { Temperature = 5, RelativeHumidity = 80, Index = _weatherData.Count, Year = _selectedYear == "all" ? 0 : int.Parse(_selectedYear) });
+            }
+
+            _statusText = cityName;
+            _statusSub = $"Open-Meteo {startStr} – {endStr} ({data.Count}h)";
+            _statusClass = "text-green-600";
+
+            RunSimulation();
+        }
+        catch (Exception ex)
+        {
+            _statusText = "Standort-Fehler";
+            _statusSub = ex.Message.Length > 30 ? ex.Message[..30] + "..." : ex.Message;
+            _statusClass = "text-red-600";
+        }
+        finally
+        {
+            _geoLoading = false;
+        }
     }
 
     private void OnYearChanged()
