@@ -85,10 +85,14 @@ public static class EvaluationService
         for (int m = 0; m < 12; m++)
             data[m] = new MonthlyAggregate { Name = names[m] };
 
+        int[] monthStartHour = [0, 744, 1416, 2160, 2880, 3624, 4344, 5088, 5832, 6552, 7296, 8016];
         for (int i = 0; i < 8760; i++)
         {
-            var dt = new DateTime(2023, 1, 1).AddHours(i);
-            int mIdx = dt.Month - 1;
+            int mIdx = 11;
+            for (int m = 11; m >= 0; m--)
+            {
+                if (i >= monthStartHour[m]) { mIdx = m; break; }
+            }
             data[mIdx].Waerme += res.ThermalPower[i] + res.HeizstabPower[i];
             data[mIdx].Strom += res.ElectricalPower[i] + res.HeizstabPower[i];
             data[mIdx].IcingCount += res.Icing[i];
