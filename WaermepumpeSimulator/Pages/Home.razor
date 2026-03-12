@@ -320,6 +320,8 @@ else
 
             @if (_result != null)
             {
+                <div class="@(_simulating ? "opacity-40 pointer-events-none" : "opacity-100") transition-opacity duration-200">
+
                 <!-- Verdict Banner -->
                 <div class="mb-8 p-4 rounded-lg shadow-md border-l-8 bg-white flex flex-col justify-center">
                     <div class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">Gesamtfazit der Auslegung</div>
@@ -533,6 +535,7 @@ else
                         </div>
                     </details>
                 </div>
+                </div>
             }
             else
             {
@@ -554,6 +557,7 @@ else
     private SimulationResult? _result;
     private EvaluationResult? _eval;
     private List<MonthlyAggregate>? _monthly;
+    private readonly Dictionary<string, (SimulationResult Result, EvaluationResult Eval, List<MonthlyAggregate> Monthly)> _resultCache = new();
 
     private List<ClimateProfile> _profiles = [];
     private List<HeatPumpPreset> _presets = [];
@@ -576,6 +580,7 @@ else
     private double? _geoLatitude;
     private double? _geoLongitude;
     private bool _geoLoading;
+    private bool _simulating;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
@@ -725,7 +730,17 @@ else
         _statusSub = _selectedYear == "all"
             ? $"Ø aus {_allWeatherData.Count / 8760} Jahren"
             : $"Jahr {_selectedYear} ({_weatherData.Count}h)";
-        RunSimulation();
+
+        if (_resultCache.TryGetValue(_selectedYear, out var cached))
+        {
+            _result = cached.Result;
+            _eval = cached.Eval;
+            _monthly = cached.Monthly;
+        }
+        else
+        {
+            RunSimulation();
+        }
     }
 
     private async Task OnCsvUpload(InputFileChangeEventArgs e)
@@ -784,10 +799,39 @@ else
     private async void RunSimulation()
     {
         if (_weatherData.Count == 0) return;
+        _resultCache.Clear();
+        _simulating = true;
+        StateHasChanged();
+        await Task.Yield();
         _result = Engine.Run(Params, _weatherData);
         _eval = EvaluationService.Evaluate(_result);
         _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
+        _resultCache[_selectedYear] = (_result, _eval, _monthly);
+        _simulating = false;
+        StateHasChanged();
         await SaveState();
+        await PrecalculateOtherYears();
+    }
+
+    private async Task PrecalculateOtherYears()
+    {
+        var keys = new List<string>();
+        foreach (var y in _availableYears)
+            keys.Add(y.ToString());
+        if (_availableYears.Count > 1)
+            keys.Add("all");
+
+        foreach (var key in keys)
+        {
+            if (_resultCache.ContainsKey(key)) continue;
+            var weatherData = WeatherDataService.FilterByYear(_allWeatherData, key);
+            if (weatherData.Count == 0) continue;
+            await Task.Yield();
+            var result = Engine.Run(Params, weatherData);
+            var eval = EvaluationService.Evaluate(result);
+            var monthly = EvaluationService.CalcMonthly(result, Params.PreisStrom);
+            _resultCache[key] = (result, eval, monthly);
+        }
     }
 
     private async Task AddToComparison()
