@@ -1,3 +1,14 @@
 /.idea/.idea.Solution1/.idea/.gitignore
 /.idea/.idea.Solution1/.idea/indexLayout.xml
 /.idea/.idea.Solution1/.idea/vcs.xml
+# .NET Core build folders
+bin/
+obj/
+
+# Common node modules locations
+/node_modules
+/wwwroot/node_modules
+
+
+
+# End of https://mrkandreev.name/snippets/gitignore-generator/#DotnetCore,c#,dotnet

@@ -1,0 +1,86 @@
+@* Power profile: Load vs Min + cycling markers *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_loadData"
+                         Name="Last (24h)"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_minData"
+                         Name="Min. Leistung"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        @if (_taktData.Count > 0)
+        {
+            <ApexPointSeries TItem="XYPoint"
+                             Items="_taktData"
+                             Name="Taktung"
+                             SeriesType="SeriesType.Scatter"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+        }
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _loadData = [];
+    private List<XYPoint> _minData = [];
+    private List<XYPoint> _taktData = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+        var rollL = RollingAvg(r.Load, 24);
+        var rollMin = RollingAvg(r.PMinAvail, 24);
+
+        _loadData = [];
+        _minData = [];
+        _taktData = [];
+
+        for (int i = 0; i < 8760; i += 6)
+        {
+            _loadData.Add(new XYPoint(i, rollL[i]));
+            _minData.Add(new XYPoint(i, rollMin[i]));
+        }
+
+        // Cycling markers (sample every 12h for performance)
+        for (int i = 0; i < 8760; i += 12)
+            if (r.Cycling[i] == 1)
+                _taktData.Add(new XYPoint(i, r.Load[i]));
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Verlauf & Taktung" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde im Jahr" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" } }],
+            Colors = ["#1f2937", "#9ca3af", "#dc2626"],
+            Stroke = new Stroke { Width = new List<double> { 2, 2, 0 }, DashArray = new List<double> { 0, 4, 0 } },
+            Markers = new Markers { Size = new List<double> { 0, 0, 3 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+
+    private static double[] RollingAvg(double[] arr, int window)
+    {
+        var result = new double[arr.Length];
+        double sum = 0; int count = 0;
+        for (int i = 0; i < arr.Length; i++)
+        {
+            sum += arr[i]; count++;
+            if (count > window) { sum -= arr[i - window]; count--; }
+            result[i] = sum / count;
+        }
+        return result;
+    }
+}

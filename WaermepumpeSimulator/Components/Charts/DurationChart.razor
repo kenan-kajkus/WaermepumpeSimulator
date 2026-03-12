@@ -1,0 +1,74 @@
+@* Dauerlinie (Duration Curve) - stacked area *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="DurationPoint" Options="_options" Height="450" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="DurationPoint"
+                         Items="_data"
+                         Name="WP"
+                         SeriesType="SeriesType.Area"
+                         XValue="p => (decimal)p.Hour"
+                         YValue="p => p.Wp" />
+        <ApexPointSeries TItem="DurationPoint"
+                         Items="_data"
+                         Name="Heizstab"
+                         SeriesType="SeriesType.Area"
+                         XValue="p => (decimal)p.Hour"
+                         YValue="p => p.Stab" />
+        <ApexPointSeries TItem="DurationPoint"
+                         Items="_data"
+                         Name="Defizit"
+                         SeriesType="SeriesType.Area"
+                         XValue="p => (decimal)p.Hour"
+                         YValue="p => p.Defizit" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<DurationPoint> _options = new();
+    private List<DurationPoint> _data = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        var sorted = Enumerable.Range(0, 8760)
+            .Select(i => new { l = r.Load[i], wp = r.ThermalPower[i], st = r.HeizstabPower[i], df = r.Deficit[i] })
+            .OrderByDescending(x => x.l)
+            .ToList();
+
+        // Downsample to ~500 points for performance
+        _data = [];
+        int step = Math.Max(1, sorted.Count / 500);
+        for (int i = 0; i < sorted.Count; i += step)
+        {
+            _data.Add(new DurationPoint
+            {
+                Hour = i,
+                Wp = (decimal)sorted[i].wp,
+                Stab = (decimal)sorted[i].st,
+                Defizit = (decimal)sorted[i].df
+            });
+        }
+
+        _options = new ApexChartOptions<DurationPoint>
+        {
+            Chart = new Chart
+            {
+                Toolbar = new Toolbar { Show = false },
+                Stacked = true
+            },
+            Title = new Title { Text = "Dauerlinie" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunden (sortiert)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" } }],
+            Colors = ["#22c55e", "#ef4444", "#1f2937"],
+            Stroke = new Stroke { Width = new List<double> { 0, 0, 0 } },
+            Fill = new Fill { Opacity = new List<double> { 0.6, 0.8, 0.7 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

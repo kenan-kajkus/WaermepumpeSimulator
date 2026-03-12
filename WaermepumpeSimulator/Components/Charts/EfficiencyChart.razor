@@ -1,0 +1,87 @@
+@* Efficiency scatter: hourly operating points colored by COP range *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="ScatterPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+        @foreach (var group in _groups)
+        {
+            <ApexPointSeries TItem="ScatterPoint"
+                             Items="group.Points"
+                             Name="@group.Name"
+                             SeriesType="SeriesType.Scatter"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+        }
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_limitLine"
+                         Name="Limit WP"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_minLine"
+                         Name="Min. Grenze"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<ScatterPoint> _options = new();
+    private List<ScatterPoint> _limitLine = [];
+    private List<ScatterPoint> _minLine = [];
+    private List<(string Name, List<ScatterPoint> Points)> _groups = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        // Group scatter points by COP range (simulates colorscale)
+        var copBins = new Dictionary<string, List<ScatterPoint>>
+        {
+            ["COP < 2"] = [],
+            ["COP 2-3"] = [],
+            ["COP 3-4"] = [],
+            ["COP 4-5"] = [],
+            ["COP > 5"] = [],
+        };
+
+        for (int i = 0; i < 8760; i += 4)
+        {
+            if (r.Load[i] <= 0.1) continue;
+            var pt = new ScatterPoint(r.Temperature[i], r.Load[i], "");
+            double cop = r.Cop[i];
+            if (cop < 2) copBins["COP < 2"].Add(pt);
+            else if (cop < 3) copBins["COP 2-3"].Add(pt);
+            else if (cop < 4) copBins["COP 3-4"].Add(pt);
+            else if (cop < 5) copBins["COP 4-5"].Add(pt);
+            else copBins["COP > 5"].Add(pt);
+        }
+
+        _groups = copBins.Where(kv => kv.Value.Count > 0).Select(kv => (kv.Key, kv.Value)).ToList();
+
+        _limitLine = [];
+        _minLine = [];
+        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        {
+            _limitLine.Add(new ScatterPoint(r.LutTemps[i], r.WpPMaxCustom[i], ""));
+            _minLine.Add(new ScatterPoint(r.LutTemps[i], r.WpPMin[i], ""));
+        }
+
+        _options = new ApexChartOptions<ScatterPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" } }],
+            Colors = ["#7e22ce", "#dc2626", "#f59e0b", "#22c55e", "#06b6d4", "rgba(255,0,0,0.2)", "rgba(0,0,0,0.2)"],
+            Markers = new Markers { Size = new List<double>(Enumerable.Repeat(3.0, _groups.Count).Concat([0.0, 0.0])) },
+            Stroke = new Stroke { Width = new List<double>(Enumerable.Repeat(0.0, _groups.Count).Concat([2.0, 2.0])) },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

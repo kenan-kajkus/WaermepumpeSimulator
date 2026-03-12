@@ -1,0 +1,70 @@
+@* Kennlinien Check: COP curves with data points *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_cop35"
+                         Name="COP W35"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_pts35"
+                         Name="W35 Punkte"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_cop55"
+                         Name="COP W55"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_pts55"
+                         Name="W55 Punkte"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _cop35 = [];
+    private List<XYPoint> _cop55 = [];
+    private List<XYPoint> _pts35 = [];
+    private List<XYPoint> _pts55 = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        _cop35 = []; _cop55 = [];
+        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        {
+            _cop35.Add(new XYPoint(r.LutTemps[i], r.WpCop35[i]));
+            _cop55.Add(new XYPoint(r.LutTemps[i], r.WpCop55[i]));
+        }
+
+        _pts35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10).Select(p => new XYPoint(p[1], p[2])).ToList();
+        _pts55 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 55) < 10).Select(p => new XYPoint(p[1], p[2])).ToList();
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Kennlinien Check: COP" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "COP" } }],
+            Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f"],
+            Stroke = new Stroke { Width = new List<double> { 2, 0, 2, 0 } },
+            Markers = new Markers { Size = new List<double> { 0, 6, 0, 6 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

@@ -1,0 +1,53 @@
+@* Icing Zoom: First week of January - Temp vs Dew Point *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_tempData"
+                         Name="Temperatur"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_dewData"
+                         Name="Taupunkt"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _tempData = [];
+    private List<XYPoint> _dewData = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+
+        _tempData = [];
+        _dewData = [];
+        int hours = Math.Min(168, Result.Temperature.Length);
+        for (int i = 0; i < hours; i++)
+        {
+            _tempData.Add(new XYPoint(i, Result.Temperature[i]));
+            _dewData.Add(new XYPoint(i, Result.DewPoint[i]));
+        }
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Januar Woche (Temp vs Taupunkt)" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "°C" } }],
+            Colors = ["#2563eb", "#9ca3af"],
+            Stroke = new Stroke { Width = new List<double> { 2, 2 }, DashArray = new List<double> { 0, 4 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

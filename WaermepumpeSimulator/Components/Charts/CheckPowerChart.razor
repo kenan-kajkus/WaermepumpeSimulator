@@ -1,0 +1,60 @@
+@* Kennlinien Check: Power curves *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_p35"
+                         Name="P Max VL35"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_p55"
+                         Name="P Max VL55"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_pMin"
+                         Name="P Min"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _p35 = [];
+    private List<XYPoint> _p55 = [];
+    private List<XYPoint> _pMin = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        _p35 = []; _p55 = []; _pMin = [];
+        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        {
+            _p35.Add(new XYPoint(r.LutTemps[i], r.WpP35[i]));
+            _p55.Add(new XYPoint(r.LutTemps[i], r.WpP55[i]));
+            _pMin.Add(new XYPoint(r.LutTemps[i], r.WpPMin[i]));
+        }
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Leistung" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" } }],
+            Colors = ["#dc2626", "#7f1d1d", "#9ca3af"],
+            Stroke = new Stroke { Width = new List<double> { 2, 2, 2 }, DashArray = new List<double> { 0, 4, 0 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

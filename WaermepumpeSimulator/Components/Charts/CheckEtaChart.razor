@@ -1,0 +1,72 @@
+@* Kennlinien Check: Gütegrad (eta) *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_eta35"
+                         Name="η W35"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_pts35"
+                         Name="W35 Punkte"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_eta55"
+                         Name="η W55"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_pts55"
+                         Name="W55 Punkte"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _eta35 = [];
+    private List<XYPoint> _eta55 = [];
+    private List<XYPoint> _pts35 = [];
+    private List<XYPoint> _pts55 = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        _eta35 = []; _eta55 = [];
+        for (int i = 0; i < r.LutTemps.Length; i += 5)
+        {
+            _eta35.Add(new XYPoint(r.LutTemps[i], r.WpEta35[i]));
+            _eta55.Add(new XYPoint(r.LutTemps[i], r.WpEta55[i]));
+        }
+
+        _pts35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10)
+            .Select(p => new XYPoint(p[1], p[2] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
+        _pts55 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 55) < 10)
+            .Select(p => new XYPoint(p[1], p[2] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m }],
+            Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f"],
+            Stroke = new Stroke { Width = new List<double> { 2, 0, 2, 0 } },
+            Markers = new Markers { Size = new List<double> { 0, 6, 0, 6 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

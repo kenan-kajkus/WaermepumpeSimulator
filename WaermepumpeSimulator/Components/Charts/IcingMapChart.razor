@@ -1,0 +1,58 @@
+@* Icing Map: Temp vs Humidity, colored by icing risk *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="ScatterPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_normalPts"
+                         Name="Normal"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        @if (_icingPts.Count > 0)
+        {
+            <ApexPointSeries TItem="ScatterPoint"
+                             Items="_icingPts"
+                             Name="Vereisung"
+                             SeriesType="SeriesType.Scatter"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+        }
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<ScatterPoint> _options = new();
+    private List<ScatterPoint> _normalPts = [];
+    private List<ScatterPoint> _icingPts = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var r = Result;
+
+        _normalPts = [];
+        _icingPts = [];
+
+        for (int i = 0; i < 8760; i += 4)
+        {
+            var pt = new ScatterPoint(r.Temperature[i], r.RelativeHumidity[i], "");
+            if (r.Icing[i] == 1) _icingPts.Add(pt);
+            else _normalPts.Add(pt);
+        }
+
+        _options = new ApexChartOptions<ScatterPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Icing Map" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Temperatur (°C)" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Rel. Feuchte (%)" } }],
+            Colors = ["rgba(0,0,200,0.15)", "#dc2626"],
+            Markers = new Markers { Size = new List<double> { 3, 4 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}

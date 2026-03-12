@@ -1,0 +1,56 @@
+@* Temperature profile (24h rolling average) *@
+
+@if (Result != null)
+{
+    <ApexChart TItem="XYPoint" Options="_options" Height="400" XAxisType="XAxisType.Numeric">
+        <ApexPointSeries TItem="XYPoint"
+                         Items="_data"
+                         Name="Temp (24h Mittel)"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChartOptions<XYPoint> _options = new();
+    private List<XYPoint> _data = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null) return;
+        var roll = RollingAvg(Result.Temperature, 24);
+
+        _data = [];
+        // Downsample
+        for (int i = 0; i < roll.Length; i += 6)
+            _data.Add(new XYPoint(i, roll[i]));
+
+        _options = new ApexChartOptions<XYPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Temperaturverlauf" },
+            Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde im Jahr" } },
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "°C" } }],
+            Colors = ["#2563eb"],
+            Stroke = new Stroke { Width = new List<double> { 2 }, Curve = Curve.Smooth },
+            Legend = new Legend { Show = false },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+
+    private static double[] RollingAvg(double[] arr, int window)
+    {
+        var result = new double[arr.Length];
+        double sum = 0; int count = 0;
+        for (int i = 0; i < arr.Length; i++)
+        {
+            sum += arr[i]; count++;
+            if (count > window) { sum -= arr[i - window]; count--; }
+            result[i] = sum / count;
+        }
+        return result;
+    }
+}

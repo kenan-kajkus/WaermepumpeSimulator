@@ -1,0 +1,48 @@
+@* Monthly bar chart: Wärme vs Strom per month *@
+
+@if (Monthly != null)
+{
+    <ApexChart TItem="MonthlyChartPoint" Options="_options" Height="500">
+        <ApexPointSeries TItem="MonthlyChartPoint"
+                         Items="_data"
+                         Name="Wärme (kWh)"
+                         SeriesType="SeriesType.Bar"
+                         XValue="p => p.Month"
+                         YAggregate="p => p.Sum(x => x.Waerme)" />
+        <ApexPointSeries TItem="MonthlyChartPoint"
+                         Items="_data"
+                         Name="Strom (kWh)"
+                         SeriesType="SeriesType.Bar"
+                         XValue="p => p.Month"
+                         YAggregate="p => p.Sum(x => x.Strom)" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public List<MonthlyAggregate>? Monthly { get; set; }
+
+    private ApexChartOptions<MonthlyChartPoint> _options = new();
+    private List<MonthlyChartPoint> _data = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Monthly == null) return;
+
+        _data = Monthly.Select(m => new MonthlyChartPoint
+        {
+            Month = m.Name,
+            Waerme = (decimal)m.Waerme,
+            Strom = (decimal)m.Strom
+        }).ToList();
+
+        _options = new ApexChartOptions<MonthlyChartPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Title = new Title { Text = "Monatsbilanz" },
+            PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { Horizontal = false, ColumnWidth = "60%" } },
+            Colors = ["#3b82f6", "#f97316"],
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip { Enabled = true }
+        };
+    }
+}
