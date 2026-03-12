@@ -1,0 +1,32 @@
+name: Deploy to IIS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  DEPLOY_PATH: C:\inetpub\waermepumpe
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Publish
+        run: dotnet publish WaermepumpeSimulator/WaermepumpeSimulator.csproj -c Release -o ./publish
+
+      - name: Deploy to IIS
+        run: |
+          if (!(Test-Path $env:DEPLOY_PATH)) {
+            New-Item -ItemType Directory -Path $env:DEPLOY_PATH -Force
+          }
+          Copy-Item -Path "./publish/wwwroot/*" -Destination $env:DEPLOY_PATH -Recurse -Force
