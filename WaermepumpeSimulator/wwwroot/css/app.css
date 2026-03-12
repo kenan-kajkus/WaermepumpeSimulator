@@ -1,0 +1,36 @@
+body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
+.input-group { margin-bottom: 0.8rem; position: relative; }
+.input-label { display: flex; align-items: center; font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 0.25rem; }
+.input-field { width: 100%; padding: 0.35rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; box-sizing: border-box; }
+.section-title { font-size: 1.1rem; font-weight: 700; color: #1f2937; margin-bottom: 0.75rem; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.25rem; }
+.tab-btn { padding: 0.5rem 1rem; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; color: #6b7280; background: none; border-top: none; border-left: none; border-right: none; }
+.tab-btn.active { border-bottom-color: #2563eb; color: #2563eb; }
+.chart-container { background: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; min-height: 400px; }
+
+.help-icon { margin-left: 6px; color: #9ca3af; cursor: help; transition: color 0.2s; }
+.help-icon:hover { color: #2563eb; }
+
+.tooltip {
+    visibility: hidden; width: 220px; background-color: #1f2937; color: #fff; text-align: left;
+    border-radius: 6px; padding: 8px 12px; position: absolute; z-index: 50;
+    top: 100%; left: 50%; transform: translateX(-50%);
+    opacity: 0; transition: opacity 0.2s; font-size: 0.75rem; font-weight: 400; line-height: 1.4;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); pointer-events: none; margin-top: 8px;
+}
+.input-group:hover .tooltip { visibility: visible; opacity: 1; pointer-events: auto; }
+.tooltip::before { content: ""; position: absolute; bottom: 100%; left: 0; width: 100%; height: 15px; background: transparent; }
+.tooltip::after { content: ""; position: absolute; bottom: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: transparent transparent #1f2937 transparent; }
+.tooltip a { color: #60a5fa; text-decoration: underline; }
+
+.tooltip-right { left: 0 !important; transform: none !important; margin-left: 0; }
+.tooltip-right::after { left: 20px !important; margin-left: 0 !important; }
+.tooltip-left { left: auto !important; right: 0 !important; transform: none !important; }
+.tooltip-left::after { left: auto !important; right: 20px !important; margin-left: 0 !important; }
+
+textarea.input-field { resize: vertical; font-family: monospace; font-size: 0.75rem; }
+
+#blazor-error-ui {
+    background: lightyellow; bottom: 0; box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none; left: 0; padding: 0.6rem 1.25rem 0.7rem 1.25rem; position: fixed; width: 100%; z-index: 1000;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 0.75rem; top: 0.5rem; }

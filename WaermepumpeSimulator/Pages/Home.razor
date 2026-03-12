@@ -1,0 +1,757 @@
+@page "/"
+@inject WeatherDataService WeatherSvc
+@inject HeatPumpPresetService PresetSvc
+@inject SimulationEngine Engine
+@inject IJSRuntime JS
+
+<PageTitle>WP Simulator & JAZ Rechner</PageTitle>
+
+<div class="flex flex-col h-screen overflow-hidden">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-10 gap-4">
+        <h1 class="text-xl font-bold text-blue-700 whitespace-nowrap">WP Simulator <span class="text-sm font-normal text-gray-500 hidden md:inline">Jahresarbeitszahl & Taktung</span></h1>
+        <div class="flex items-center gap-2 w-full justify-end">
+            <div class="relative flex items-center">
+                <span class="text-xs text-gray-500 mr-2">Standort:</span>
+                <select @bind="_selectedCity" @bind:after="OnLocationChanged" class="border border-gray-300 rounded px-2 py-2 text-xs w-32 focus:outline-none focus:border-blue-500 bg-white">
+                    @foreach (var p in _profiles)
+                    {
+                        <option value="@p.Key">@p.DisplayName</option>
+                    }
+                </select>
+            </div>
+
+            @if (_availableYears.Count > 1)
+            {
+                <div class="relative flex items-center">
+                    <span class="text-xs text-gray-500 mr-2">Jahr:</span>
+                    <select @bind="_selectedYear" @bind:after="OnYearChanged" class="border border-gray-300 rounded px-2 py-2 text-xs w-24 focus:outline-none focus:border-blue-500 bg-white">
+                        <option value="all">Alle (Durchschnitt)</option>
+                        @foreach (var y in _availableYears.OrderBy(x => x))
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="hidden lg:block text-xs text-right mx-2 leading-tight w-24">
+                <div class="@_statusClass font-medium">@_statusText</div>
+                <div class="text-[10px] text-gray-400">@_statusSub</div>
+            </div>
+
+            <label class="bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer py-2 px-3 rounded border border-gray-300 transition text-xs flex items-center gap-2" title="Eigene CSV Datei hochladen">
+                <i class="fas fa-upload"></i> CSV
+                <InputFile OnChange="OnCsvUpload" accept=".csv" class="hidden" />
+            </label>
+
+            <button @onclick="RunSimulation" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow-lg transition transform hover:scale-105 ml-4 flex items-center gap-2 whitespace-nowrap">
+                <i class="fas fa-calculator"></i>
+                <span>BERECHNEN</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-80 bg-white border-r border-gray-200 overflow-y-auto p-5 shadow-lg z-0">
+            <!-- Gebäude & Heizlast -->
+            <div class="mb-6">
+                <h3 class="section-title">Gebäude & Heizlast</h3>
+                <div class="grid grid-cols-1 gap-1">
+                    <div class="input-group">
+                        <label class="input-label">Wärmeverbrauch (Warmwasser + Raum) (kWh/a) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Der bisherige Jahresverbrauch deiner Öl- oder Gasheizung in kWh. (1 Liter Öl ≈ 10 kWh, 1 m³ Gas ≈ 10 kWh)</span>
+                        <input type="number" @bind="Params.Jahresverbrauch" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Wirkungsgrad alte Heizung (0.8-1.0) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Jahresnutzungsgrad der alten Öl- oder Gasheizung.<br>Standardkessel: ca. 0.8<br>Brennwert/Neu: ca. 0.95</span>
+                        <input type="number" @bind="Params.Wirkungsgrad" step="0.01" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">WW Anteil des Wärmeverbrauchs (%) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Wieviel eures Wärmeverbrauchs geht ins Warmwasser?<br>Typisch: 15-20% für 4 Personen.</span>
+                        <input type="number" @bind="Params.WarmwasserAnteil" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Heizgrenze (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Ab welcher Außentemperatur heizt ihr? (Altbau: 15°C, Neubau: 10-12°C, Durchheizen: 22°)</span>
+                        <input type="number" @bind="Params.Heizgrenze" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">NAT (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Norm-Außentemperatur für deinen Standort.<br><a href="https://www.waermepumpe.de/werkzeuge/klimakarte/" target="_blank">Hier Klimakarte öffnen</a></span>
+                        <input type="number" @bind="Params.NormAussentemperatur" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Raum Soll (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Deine typische, gewünschte Raumtemperatur (z.B. 21°C oder 22°C).</span>
+                        <input type="number" @bind="Params.RaumSollTemperatur" class="input-field" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preise -->
+            <div class="mb-6 p-3 bg-blue-50 rounded border border-blue-100">
+                <h3 class="font-bold text-gray-700 text-sm mb-2">Preise & Vergleich</h3>
+                <div class="input-group">
+                    <label class="input-label">Strompreis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Dein erwarteter Strompreis für die WP (oft gibt es spezielle WP-Tarife, ca. 20-30 ct).</span>
+                    <input type="number" @bind="Params.PreisStrom" step="0.01" class="input-field" />
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Gas/Öl Preis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Was zahlst du aktuell?<br><b>Gas:</b> Preis pro kWh<br><b>Öl:</b> Literpreis geteilt durch 10</span>
+                    <input type="number" @bind="Params.PreisAlt" step="0.01" class="input-field" />
+                </div>
+            </div>
+
+            <!-- Hydraulik -->
+            <div class="mb-6">
+                <h3 class="section-title">Hydraulik (Vorlauf)</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="input-group">
+                        <label class="input-label">Vorlauftemperatur Max <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip tooltip-right">Die benötigte Temperatur bei kältester Außentemperatur (NAT).<br><b>FBH:</b> 30-35°C<br><b>HK modern:</b> 45-50°C<br><b>HK alt:</b> 55-65°C</span>
+                        <input type="number" @bind="Params.VorlaufMax" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Vorlauftemperatur Min <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Niedrigste Vorlauftemperatur bei mildem Wetter.<br><b>Typisch:</b> 25-30°C</span>
+                        <input type="number" @bind="Params.VorlaufMin" class="input-field" />
+                    </div>
+                    <div class="input-group col-span-2">
+                        <label class="input-label">Warmwasser Temp im Speicher (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip tooltip-left">Zieltemperatur im Speicher.<br><b>Effizient:</b> 45-48°C<br><b>Standard:</b> 50-52°C</span>
+                        <input type="number" @bind="Params.WarmwasserTemp" class="input-field" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Heizstab -->
+            <div class="mb-6 p-3 bg-red-50 rounded border border-red-100">
+                <h3 class="font-bold text-gray-700 text-sm mb-2">Zusatzheizung</h3>
+                <div class="input-group">
+                    <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
+                    <input type="number" @bind="Params.HeizstabMax" class="input-field" />
+                </div>
+            </div>
+
+            <!-- Nachtabsenkung -->
+            <div class="mb-6 p-3 bg-gray-50 rounded border border-gray-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-gray-700 text-sm flex items-center">
+                        Nachtabsenkung
+                        <i class="fas fa-circle-question help-icon text-gray-400 ml-1"></i>
+                    </h3>
+                    <input type="checkbox" @bind="Params.NachtabsenkungAktiv" />
+                </div>
+                <div class="grid grid-cols-2 gap-2 @(Params.NachtabsenkungAktiv ? "" : "opacity-50 pointer-events-none") transition-opacity">
+                    <div class="input-group">
+                        <label class="input-label">Start (h)</label>
+                        <input type="number" @bind="Params.NachtStart" class="input-field" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Ende (h)</label>
+                        <input type="number" @bind="Params.NachtEnde" class="input-field" />
+                    </div>
+                    <div class="input-group col-span-2">
+                        <label class="input-label">Absenkung Delta (K) <i class="fas fa-circle-question help-icon"></i></label>
+                        <span class="tooltip">Um wieviel Grad soll die Raumtemperatur gesenkt werden?</span>
+                        <input type="number" @bind="Params.NachtDeltaT" step="0.5" class="input-field" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- WP Kennfeld -->
+            <div class="mb-6">
+                <h3 class="section-title">WP Kennfeld</h3>
+                <div class="input-group mb-4">
+                    <label class="input-label text-blue-600 font-bold"><i class="fas fa-robot mr-1"></i> Modell Vorlage</label>
+                    <select @bind="_selectedPreset" @bind:after="OnPresetChanged" class="input-field bg-blue-50 text-blue-900 border-blue-200 font-semibold cursor-pointer">
+                        <option value="custom">-- Benutzerdefiniert --</option>
+                        @foreach (var group in _presets.GroupBy(p => p.Group))
+                        {
+                            <optgroup label="@group.Key">
+                                @foreach (var preset in group)
+                                {
+                                    <option value="@preset.Key">@preset.Name</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                </div>
+                <div class="text-xs text-gray-500 mb-2">Format: Temp,Wert (Neue Zeile für neuen Punkt)</div>
+                <div class="input-group">
+                    <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
+                    <textarea @bind="Params.RawPMax" @oninput="ResetPreset" class="input-field h-20" rows="3"></textarea>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Die unterste Modulationsgrenze. Wichtig für die Taktung!<br>Leer lassen = Automatisch (25% von Max).</span>
+                    <textarea @bind="Params.RawPMin" @oninput="ResetPreset" class="input-field h-20" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
+                    <span class="tooltip">Gib alle bekannten Punkte ein. Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
+                    <textarea @bind="Params.RawCopData" @oninput="ResetPreset" class="input-field h-32" rows="6"></textarea>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            @if (_result != null)
+            {
+                <!-- Verdict Banner -->
+                <div class="mb-8 p-4 rounded-lg shadow-md border-l-8 bg-white flex flex-col justify-center">
+                    <div class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">Gesamtfazit der Auslegung</div>
+                    <h2 class="text-2xl font-bold text-gray-800">Analyse abgeschlossen</h2>
+                    @if (_eval != null)
+                    {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2 text-sm">
+                            <div class="@GetBgClass(_eval.JazColor) p-3 rounded border @GetBorderClass(_eval.JazColor)">
+                                <p class="font-bold @GetTextClass(_eval.JazColor) uppercase text-[10px] mb-1">Effizienz (JAZ)</p>
+                                <div class="text-2xl font-black text-gray-800 mb-1">@_result.Jaz.ToString("F2")</div>
+                                <p class="text-[11px] text-gray-700 leading-snug">@_eval.JazText</p>
+                            </div>
+                            <div class="@GetBgClass(_eval.TaktColor) p-3 rounded border @GetBorderClass(_eval.TaktColor)">
+                                <p class="font-bold @GetTextClass(_eval.TaktColor) uppercase text-[10px] mb-1">Takt-Check (unterhalb Min. Leistung)</p>
+                                <div class="text-2xl font-black text-gray-800 mb-1">@_result.CyclingPercent.ToString("F1") %</div>
+                                <p class="text-[11px] text-gray-700 leading-snug">@_eval.TaktText</p>
+                            </div>
+                            <div class="@GetBgClass(_eval.StabColor) p-3 rounded border @GetBorderClass(_eval.StabColor)">
+                                <p class="font-bold @GetTextClass(_eval.StabColor) uppercase text-[10px] mb-1">Auslegung & Heizstab</p>
+                                <div class="text-2xl font-black text-gray-800 mb-1">@_result.HeizstabAnteil.ToString("F1") % <span class="text-sm font-normal text-gray-500">p.a.</span></div>
+                                <p class="text-[11px] text-gray-700 leading-snug">@((MarkupString)_eval.StabText)</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Section 1: Härtetest -->
+                <div class="mb-10">
+                    <h2 class="text-xl font-bold text-gray-800 border-b-2 border-indigo-200 pb-2 mb-3 flex items-center gap-2">
+                        <i class="fas fa-snowflake text-indigo-500"></i> 1. Der Härtetest (Theoretische Auslegung)
+                    </h2>
+                    <p class="text-sm text-gray-600 mb-4">
+                        Hier prüfen wir den <b>Worst-Case</b>: Schafft die Wärmepumpe es, dein Haus am kältesten Tag
+                        (NAT: <span class="font-bold">@Params.NormAussentemperatur °C</span>) warm zu halten?
+                    </p>
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                        <div class="xl:col-span-1 flex flex-col justify-center">
+                            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-indigo-500 h-full flex flex-col justify-center">
+                                <div class="space-y-5 text-sm text-gray-700">
+                                    <div>
+                                        <div class="text-gray-500 mb-1">Heizlast Haus (@@NAT):</div>
+                                        <div class="font-bold text-purple-700 text-2xl">@_result.LoadAtNat.ToString("F1") kW</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-500 mb-1">Max. Leistung WP (@@NAT):</div>
+                                        <div class="font-bold @(_result.WpAtNat >= _result.LoadAtNat ? "text-green-600" : _result.WpAtNat + Params.HeizstabMax >= _result.LoadAtNat ? "text-orange-500" : "text-red-600") text-2xl">@_result.WpAtNat.ToString("F1") kW</div>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-4 mt-2">
+                                        <div class="text-[11px] text-gray-500 uppercase font-bold mb-1">Bivalenzpunkt</div>
+                                        <div class="font-medium text-gray-800 mb-1">Heizstab-Einsatz nötig ab:</div>
+                                        <div class="font-bold text-red-600 text-3xl">@(_result.BivalenzTemp.HasValue ? $"{_result.BivalenzTemp:F1} °C" : "Keiner")</div>
+                                        <div class="text-[11px] text-gray-500 mt-2 leading-tight">Wird es kälter als dieser Wert, reicht die WP allein nicht mehr.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="xl:col-span-2">
+                            <div class="bg-white p-4 rounded-lg shadow h-full">
+                                <h4 class="font-bold text-gray-700 mb-2 italic text-sm">Leistung vs. Heizlast</h4>
+                                <div id="plot-design" class="w-full" style="height:320px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Jahressimulation -->
+                <div class="mb-10">
+                    <h2 class="text-xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 flex items-center gap-2">
+                        <i class="fas fa-calendar-alt text-blue-500"></i> 2. Jahressimulation (Realer Alltag)
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 flex flex-col">
+                            <div class="text-xs text-gray-500 uppercase font-bold mb-1">Effizienz (JAZ)</div>
+                            <div class="text-3xl font-black text-blue-600">@_result.Jaz.ToString("F3")</div>
+                            <div class="text-xs text-gray-400 mt-auto pt-2">Verhältnis von gewonnener Wärme zu eingesetztem Strom.</div>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-orange-500 flex flex-col">
+                            <div class="text-xs text-gray-500 uppercase font-bold mb-1">Stromverbrauch p.a.</div>
+                            <div class="text-3xl font-black text-gray-800">@Math.Round(_result.TotalStrom) <span class="text-base font-normal text-gray-500">kWh</span></div>
+                            <div class="flex justify-between text-[11px] mt-auto pt-2 border-t border-gray-100">
+                                <span class="text-gray-400">Heizstab-Anteil:</span>
+                                <span class="font-bold text-red-500">@_result.HeizstabAnteil.ToString("F1")%</span>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-green-500 flex flex-col">
+                            <div class="text-xs text-gray-500 uppercase font-bold mb-1">Finanzen (Ersparnis)</div>
+                            <div class="@(_result.Ersparnis > 0 ? "text-green-600" : "text-red-600") text-2xl font-black leading-none mb-2">
+                                @(_result.Ersparnis > 0 ? $"Ersparnis: {Math.Round(_result.Ersparnis)} €/Jahr" : $"Mehrkosten: {Math.Round(Math.Abs(_result.Ersparnis))} €/Jahr")
+                            </div>
+                            <div class="text-[11px] text-gray-500 space-y-1 mt-auto border-t border-gray-100 pt-2">
+                                <div class="flex justify-between"><span>Alte Heizung:</span><span class="font-semibold">@Math.Round(_result.KostenAlt) €</span></div>
+                                <div class="flex justify-between"><span>Neu (WP):</span><span class="font-semibold text-blue-600">@Math.Round(_result.KostenWp) €</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-yellow-400 flex flex-col">
+                            <div class="text-xs text-yellow-600 uppercase font-bold mb-1 flex items-center gap-1"><i class="fas fa-stopwatch"></i> Taktgefahr</div>
+                            <div class="text-3xl font-black text-gray-800">@_result.CyclingPercent.ToString("F1") %</div>
+                            <div class="text-xs text-gray-400 mt-auto pt-2">% der aktiven Heizzeit unter Minimalleistung.</div>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-cyan-400 flex flex-col relative overflow-hidden">
+                            <div class="absolute -right-2 -top-4 opacity-10 text-cyan-500 text-7xl"><i class="fas fa-icicles"></i></div>
+                            <div class="text-xs text-cyan-700 uppercase font-bold mb-1 flex items-center gap-1"><i class="fas fa-snowflake"></i> Abtau-Risiko</div>
+                            <div class="text-3xl font-black text-gray-800 relative z-10">@_result.IcingHours <span class="text-base font-normal text-gray-500">Stunden</span></div>
+                            <div class="text-xs text-gray-500 mt-auto pt-2 relative z-10">Kritische Wetterbedingungen um 0°C & feucht.</div>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-red-400 flex flex-col">
+                            <div class="text-xs text-red-600 uppercase font-bold mb-1 flex items-center gap-1"><i class="fas fa-exclamation-triangle"></i> Ungedeckter Bedarf</div>
+                            <div class="text-xl font-bold text-gray-800">@(_result.DeficitHours > 0 ? $"{_result.DeficitHours}h ({Math.Round(_result.DeficitKwh)} kWh fehlen)" : "Ausreichend")</div>
+                            <div class="text-xs text-gray-400 mt-auto pt-2">Stunden, in denen weder WP noch Heizstab das Haus warmhalten konnten.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Detail-Auswertungen -->
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-gray-800 border-b-2 border-gray-200 pb-2 mb-3 flex items-center gap-2">
+                        <i class="fas fa-chart-line text-gray-500"></i> 3. Detail-Auswertungen
+                    </h2>
+                    <div class="flex border-b border-gray-200 mb-6 bg-white rounded-t shadow-sm overflow-x-auto">
+                        @foreach (var tab in _tabs)
+                        {
+                            <button class="tab-btn @(tab.Key == _activeTab ? "active" : "") whitespace-nowrap" @onclick="() => SwitchTab(tab.Key)">@tab.Value</button>
+                        }
+                    </div>
+
+                    @if (_activeTab == "dashboard")
+                    {
+                        <div class="chart-container">
+                            <h4 class="font-bold text-gray-700 mb-2 italic text-sm">Grafik: Reale Jahressimulation</h4>
+                            <div id="plot-efficiency" class="w-full" style="height:400px;"></div>
+                        </div>
+                        <div class="chart-container">
+                            <div id="plot-duration" class="w-full" style="height:450px;"></div>
+                        </div>
+                    }
+                    else if (_activeTab == "details")
+                    {
+                        <div class="chart-container">
+                            <div id="plot-temp" class="w-full" style="height:400px;"></div>
+                        </div>
+                        <div class="chart-container">
+                            <div id="plot-power" class="w-full" style="height:400px;"></div>
+                        </div>
+                    }
+                    else if (_activeTab == "icing")
+                    {
+                        <div class="chart-container">
+                            <div id="plot-icing-map" class="w-full" style="height:500px;"></div>
+                        </div>
+                        <div class="chart-container">
+                            <h4 class="text-sm font-bold mb-2">Zoom: Erste Woche (Januar)</h4>
+                            <div id="plot-icing-zoom" class="w-full" style="height:400px;"></div>
+                        </div>
+                    }
+                    else if (_activeTab == "monthly")
+                    {
+                        <div class="chart-container">
+                            <div id="plot-monthly" class="w-full" style="height:500px;"></div>
+                        </div>
+                        <div class="bg-white rounded shadow overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monat</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Wärme (kWh)</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Strom (kWh)</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">JAZ</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Kosten</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Abtauungen (ca.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    @if (_monthly != null)
+                                    {
+                                        @foreach (var m in _monthly)
+                                        {
+                                            <tr>
+                                                <td class="px-6 py-2">@m.Name</td>
+                                                <td class="px-6 py-2 text-right">@Math.Round(m.Waerme)</td>
+                                                <td class="px-6 py-2 text-right">@Math.Round(m.Strom)</td>
+                                                <td class="px-6 py-2 text-right font-bold text-blue-600">@(m.Strom > 0 ? m.Jaz.ToString("F2") : "-")</td>
+                                                <td class="px-6 py-2 text-right">@m.Kosten.ToString("F0") €</td>
+                                                <td class="px-6 py-2 text-right text-red-500">@m.IcingCount</td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else if (_activeTab == "check")
+                    {
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <div class="chart-container">
+                                <div id="plot-check-power" class="w-full" style="height:500px;"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div id="plot-check-cop" class="w-full" style="height:500px;"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div id="plot-check-eta" class="w-full" style="height:500px;"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Disclaimer -->
+                <div class="mt-10 border-t border-gray-200 pt-6">
+                    <details class="group bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4 text-gray-600 hover:bg-gray-50 transition">
+                            <span class="flex items-center gap-2">
+                                <i class="fas fa-circle-info text-blue-400"></i>
+                                Wichtige Hinweise zu Genauigkeit & Grenzen der Simulation
+                            </span>
+                            <span class="transition group-open:rotate-180"><i class="fas fa-chevron-down"></i></span>
+                        </summary>
+                        <div class="text-xs text-gray-500 p-4 border-t border-gray-100 bg-gray-50 space-y-3 leading-relaxed">
+                            <p class="font-semibold text-gray-600 text-center">Haftungsausschluss: Dieses Tool dient der groben Abschätzung. Es ersetzt keine professionelle Heizlastberechnung nach DIN EN 12831. Alle Ergebnisse ohne Gewähr.</p>
+                        </div>
+                    </details>
+                </div>
+            }
+            else
+            {
+                <div class="flex items-center justify-center h-64">
+                    <div class="text-center text-gray-400">
+                        <i class="fas fa-calculator text-4xl mb-3"></i>
+                        <p>Drücke <b>BERECHNEN</b> um die Simulation zu starten.</p>
+                    </div>
+                </div>
+            }
+        </main>
+    </div>
+</div>
+
+@code {
+    private SimulationParameters Params { get; set; } = new();
+    private SimulationResult? _result;
+    private EvaluationResult? _eval;
+    private List<MonthlyAggregate>? _monthly;
+    private PlotlyInterop _plotly = null!;
+
+    private List<ClimateProfile> _profiles = [];
+    private List<HeatPumpPreset> _presets = [];
+    private List<WeatherDataPoint> _allWeatherData = [];
+    private List<WeatherDataPoint> _weatherData = [];
+    private HashSet<int> _availableYears = [];
+
+    private string _selectedCity = "frankfurt";
+    private string _selectedYear = "2023";
+    private string _selectedPreset = "custom";
+    private string _activeTab = "dashboard";
+
+    private string _statusText = "Lade...";
+    private string _statusSub = "-";
+    private string _statusClass = "text-gray-500";
+
+    private readonly Dictionary<string, string> _tabs = new()
+    {
+        ["dashboard"] = "1. Effizienz & Dauerlinie",
+        ["details"] = "2. Verlauf & Taktung",
+        ["icing"] = "3. Icing Map",
+        ["monthly"] = "4. Monatsbilanz",
+        ["check"] = "5. Kennlinien Check",
+    };
+
+    protected override void OnInitialized()
+    {
+        _profiles = WeatherDataService.GetClimateProfiles();
+        _presets = PresetSvc.GetAllPresets();
+        _plotly = new PlotlyInterop(JS);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadWeather();
+            await RunSimulation();
+        }
+    }
+
+    private async Task LoadWeather()
+    {
+        _statusText = "Lade...";
+        _statusClass = "text-gray-500";
+        StateHasChanged();
+
+        var (data, isSynthetic, years) = await WeatherSvc.LoadPresetWeatherAsync(_selectedCity);
+        _allWeatherData = data;
+        _availableYears = years;
+
+        var profile = _profiles.Find(p => p.Key == _selectedCity);
+        if (isSynthetic)
+        {
+            _weatherData = data;
+            _statusText = $"{profile?.Name ?? _selectedCity} (Sim)";
+            _statusSub = "CSV fehlt -> Synthetik";
+            _statusClass = "text-orange-600";
+        }
+        else if (years.Count > 1)
+        {
+            _selectedYear = years.Max().ToString();
+            _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
+            _statusText = profile?.Name ?? _selectedCity;
+            _statusSub = $"Jahr {_selectedYear} ({_weatherData.Count}h)";
+            _statusClass = "text-blue-600";
+        }
+        else
+        {
+            _selectedYear = years.First().ToString();
+            _weatherData = data.Take(8760).ToList();
+            while (_weatherData.Count < 8760) _weatherData.Add(_weatherData[_weatherData.Count % Math.Max(1, _weatherData.Count)]);
+            _statusText = profile?.Name ?? _selectedCity;
+            _statusSub = "Datensatz geladen";
+            _statusClass = "text-blue-600";
+        }
+    }
+
+    private async Task OnLocationChanged()
+    {
+        await LoadWeather();
+        await RunSimulation();
+    }
+
+    private async Task OnYearChanged()
+    {
+        _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
+        _statusSub = _selectedYear == "all"
+            ? $"Ø aus {_allWeatherData.Count / 8760} Jahren"
+            : $"Jahr {_selectedYear} ({_weatherData.Count}h)";
+        await RunSimulation();
+    }
+
+    private async Task OnCsvUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        using var reader = new StreamReader(file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024));
+        var csvText = await reader.ReadToEndAsync();
+        var (data, years) = WeatherSvc.ParseCsv(csvText);
+        if (data.Count >= 100)
+        {
+            _allWeatherData = data;
+            _availableYears = years;
+            _selectedYear = years.Max().ToString();
+            _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
+            _statusText = "Upload";
+            _statusSub = $"{data.Count} Datenpunkte";
+            _statusClass = "text-blue-600";
+            await RunSimulation();
+        }
+    }
+
+    private void OnPresetChanged()
+    {
+        if (_selectedPreset == "custom") return;
+        var preset = _presets.Find(p => p.Key == _selectedPreset);
+        if (preset == null) return;
+        Params.RawPMax = preset.PMax;
+        Params.RawPMin = preset.PMin ?? "";
+        Params.RawCopData = preset.CopData;
+    }
+
+    private void ResetPreset() => _selectedPreset = "custom";
+
+    private async Task RunSimulation()
+    {
+        if (_weatherData.Count == 0) return;
+        _result = Engine.Run(Params, _weatherData);
+        _eval = EvaluationService.Evaluate(_result);
+        _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
+        StateHasChanged();
+        await Task.Delay(50); // let DOM render
+        await DrawCharts();
+    }
+
+    private void SwitchTab(string tab)
+    {
+        _activeTab = tab;
+        StateHasChanged();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(50);
+            await InvokeAsync(DrawCharts);
+        });
+    }
+
+    private async Task DrawCharts()
+    {
+        if (_result == null) return;
+        var r = _result;
+
+        try
+        {
+            if (_activeTab == "dashboard" || _activeTab == "")
+            {
+                // Design plot
+                var designTraces = new List<object>
+                {
+                    new { x = new[] { r.PlotNat, r.PlotHeizgrenze }, y = new[] { r.LoadAtNat, r.PlotLoadHg }, mode = "lines", name = "Bedarf Haus", line = new { color = "purple", width = 4 } },
+                    new { x = r.LutTemps, y = r.WpPMaxCustom, mode = "lines", name = "Leistung WP (Max)", line = new { color = "red", width = 3 } },
+                    new { x = r.LutTemps, y = r.WpPMaxCustom.Select(v => v + Params.HeizstabMax).ToArray(), mode = "lines", name = "WP + Heizstab", line = new { color = "orange", dash = "dot", width = 2 } }
+                };
+                await _plotly.NewPlot("plot-design", designTraces, new { margin = new { t = 30, b = 40, l = 50, r = 20 }, xaxis = new { title = "Außentemperatur (°C)" }, yaxis = new { title = "Leistung (kW)" }, legend = new { orientation = "h", y = -0.2 } });
+
+                // Efficiency scatter
+                var sX = new List<double>(); var sY = new List<double>(); var sC = new List<double>();
+                for (int i = 0; i < 8760; i += 4)
+                    if (r.Load[i] > 0.1) { sX.Add(r.Temperature[i]); sY.Add(r.Load[i]); sC.Add(r.Cop[i]); }
+
+                await _plotly.NewPlot("plot-efficiency", new object[]
+                {
+                    new { x = r.LutTemps, y = r.WpPMaxCustom, mode = "lines", name = "Limit WP", line = new { color = "rgba(255,0,0,0.2)", width = 1 } },
+                    new { x = r.LutTemps, y = r.WpPMin, mode = "lines", name = "Min. Grenze", line = new { color = "rgba(0,0,0,0.2)", dash = "dash" } },
+                    new { x = sX, y = sY, mode = "markers", marker = new { size = 4, color = sC, colorscale = "Viridis", showscale = true, colorbar = new { title = "COP", thickness = 10 } }, name = "Stunden im Jahr" }
+                }, new { margin = new { t = 30, b = 40, l = 50, r = 20 }, xaxis = new { title = "Außentemperatur (°C)" }, yaxis = new { title = "Leistung (kW)" }, legend = new { orientation = "h", y = -0.2 } });
+
+                // Duration curve
+                var sorted = Enumerable.Range(0, 8760).Select(i => new { l = r.Load[i], wp = r.ThermalPower[i], st = r.HeizstabPower[i], df = r.Deficit[i] }).OrderByDescending(x => x.l).ToList();
+                var hours = Enumerable.Range(0, 8760).ToArray();
+                await _plotly.NewPlot("plot-duration", new object[]
+                {
+                    new { x = hours, y = sorted.Select(d => d.wp).ToArray(), stackgroup = "1", name = "WP", fillcolor = "rgba(34,197,94,0.6)", line = new { width = 0 } },
+                    new { x = hours, y = sorted.Select(d => d.st).ToArray(), stackgroup = "1", name = "Stab", fillcolor = "rgba(239,68,68,0.8)", line = new { width = 0 } },
+                    new { x = hours, y = sorted.Select(d => d.df).ToArray(), stackgroup = "1", name = "Defizit", fillcolor = "rgba(0,0,0,0.7)", line = new { width = 0 } }
+                }, new { title = "Dauerlinie" });
+            }
+
+            if (_activeTab == "details")
+            {
+                var dAx = Enumerable.Range(0, 8760).Select(i => new DateTime(2023, 1, 1).AddHours(i).ToString("o")).ToArray();
+                var rollT = RollingAvg(r.Temperature, 24);
+                var rollL = RollingAvg(r.Load, 24);
+                var rollMin = RollingAvg(r.PMinAvail, 24);
+
+                await _plotly.NewPlot("plot-temp", new object[]
+                {
+                    new { x = dAx, y = rollT, name = "Temp (24h)", line = new { color = "blue" } }
+                }, new { title = "Temperatur" });
+
+                var taktY = r.Load.Select((v, i) => r.Cycling[i] == 1 ? (double?)v : null).ToArray();
+                await _plotly.NewPlot("plot-power", new object[]
+                {
+                    new { x = dAx, y = rollL, name = "Last (24h)", line = new { color = "black" } },
+                    new { x = dAx, y = rollMin, name = "Min", line = new { color = "gray", dash = "dot" } },
+                    new { x = dAx, y = taktY, name = "Taktung", mode = "markers", type = "scattergl", marker = new { color = "rgba(220,38,38,0.5)", size = 3 } }
+                }, new { title = "Verlauf & Taktung" });
+            }
+
+            if (_activeTab == "icing")
+            {
+                await _plotly.NewPlot("plot-icing-map", new object[]
+                {
+                    new { x = r.Temperature, y = r.RelativeHumidity, mode = "markers", type = "scattergl",
+                        marker = new { size = 4, color = r.Icing.Select(v => v == 1 ? "red" : "rgba(0,0,200,0.1)").ToArray() } }
+                }, new { title = "Icing Map" });
+
+                await _plotly.NewPlot("plot-icing-zoom", new object[]
+                {
+                    new { x = Enumerable.Range(0, 168).ToArray(), y = r.Temperature.Take(168).ToArray(), name = "Temp" },
+                    new { x = Enumerable.Range(0, 168).ToArray(), y = r.DewPoint.Take(168).ToArray(), name = "Taupunkt", line = new { dash = "dot" } }
+                }, new { title = "Januar Woche" });
+            }
+
+            if (_activeTab == "monthly" && _monthly != null)
+            {
+                await _plotly.NewPlot("plot-monthly", new object[]
+                {
+                    new { x = _monthly.Select(m => m.Name).ToArray(), y = _monthly.Select(m => m.Waerme).ToArray(), name = "Wärme", type = "bar" },
+                    new { x = _monthly.Select(m => m.Name).ToArray(), y = _monthly.Select(m => m.Strom).ToArray(), name = "Strom", type = "bar" }
+                }, new { title = "Monate", barmode = "group" });
+            }
+
+            if (_activeTab == "check")
+            {
+                await _plotly.NewPlot("plot-check-power", new object[]
+                {
+                    new { x = r.LutTemps, y = r.WpP35, name = "P Max 35", line = new { color = "red" } },
+                    new { x = r.LutTemps, y = r.WpP55, name = "P Max 55", line = new { color = "darkred", dash = "dash" } },
+                    new { x = r.LutTemps, y = r.WpPMin, name = "P Min", line = new { color = "gray" } }
+                }, new { title = "Leistung" });
+
+                var pts35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10).ToList();
+                var pts55 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 55) < 10).ToList();
+
+                await _plotly.NewPlot("plot-check-cop", new object[]
+                {
+                    new { x = r.LutTemps, y = r.WpCop35, name = "COP W35", line = new { color = "green" } },
+                    new { x = pts35.Select(p => p[1]).ToArray(), y = pts35.Select(p => p[2]).ToArray(), mode = "markers", name = "W35 Punkte", marker = new { color = "darkgreen", size = 8, symbol = "diamond" } },
+                    new { x = r.LutTemps, y = r.WpCop55, name = "COP W55", line = new { color = "blue" } },
+                    new { x = pts55.Select(p => p[1]).ToArray(), y = pts55.Select(p => p[2]).ToArray(), mode = "markers", name = "W55 Punkte", marker = new { color = "darkblue", size = 8, symbol = "diamond" } }
+                }, new { title = "Kennlinien Check: COP" });
+
+                await _plotly.NewPlot("plot-check-eta", new object[]
+                {
+                    new { x = r.LutTemps, y = r.WpEta35, name = "η W35", line = new { color = "green" } },
+                    new { x = pts35.Select(p => p[1]).ToArray(), y = pts35.Select(p => p[2] / MathHelpers.GetCarnotCop(p[1], p[0])).ToArray(), mode = "markers", name = "W35 Punkte", marker = new { color = "darkgreen", size = 8, symbol = "diamond" } },
+                    new { x = r.LutTemps, y = r.WpEta55, name = "η W55", line = new { color = "blue" } },
+                    new { x = pts55.Select(p => p[1]).ToArray(), y = pts55.Select(p => p[2] / MathHelpers.GetCarnotCop(p[1], p[0])).ToArray(), mode = "markers", name = "W55 Punkte", marker = new { color = "darkblue", size = 8, symbol = "diamond" } }
+                }, new { title = "Kennlinien Check: Gütegrad (η)", yaxis = new { range = new[] { 0.2, 0.7 } } });
+            }
+
+            // Always draw design plot
+            if (_activeTab != "dashboard")
+            {
+                var designTraces2 = new List<object>
+                {
+                    new { x = new[] { r.PlotNat, r.PlotHeizgrenze }, y = new[] { r.LoadAtNat, r.PlotLoadHg }, mode = "lines", name = "Bedarf Haus", line = new { color = "purple", width = 4 } },
+                    new { x = r.LutTemps, y = r.WpPMaxCustom, mode = "lines", name = "Leistung WP (Max)", line = new { color = "red", width = 3 } },
+                };
+                try { await _plotly.NewPlot("plot-design", designTraces2, new { margin = new { t = 30, b = 40, l = 50, r = 20 }, xaxis = new { title = "Außentemperatur (°C)" }, yaxis = new { title = "Leistung (kW)" } }); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chart error: {ex.Message}");
+        }
+    }
+
+    private static double[] RollingAvg(double[] arr, int window)
+    {
+        var result = new double[arr.Length];
+        for (int i = 0; i < arr.Length; i++)
+        {
+            double sum = 0; int count = 0;
+            for (int j = Math.Max(0, i - window + 1); j <= i; j++) { sum += arr[j]; count++; }
+            result[i] = sum / count;
+        }
+        return result;
+    }
+
+    private static string GetBgClass(string color) => color switch
+    {
+        "red" => "bg-red-50", "orange" => "bg-orange-50", "yellow" => "bg-yellow-50",
+        "green" => "bg-green-50", "blue" => "bg-blue-50", _ => "bg-blue-50"
+    };
+
+    private static string GetBorderClass(string color) => color switch
+    {
+        "red" => "border-red-200", "orange" => "border-orange-200", "yellow" => "border-yellow-200",
+        "green" => "border-green-200", "blue" => "border-blue-200", _ => "border-blue-200"
+    };
+
+    private static string GetTextClass(string color) => color switch
+    {
+        "red" => "text-red-600", "orange" => "text-orange-600", "yellow" => "text-yellow-600",
+        "green" => "text-green-600", "blue" => "text-blue-600", _ => "text-blue-600"
+    };
+}
