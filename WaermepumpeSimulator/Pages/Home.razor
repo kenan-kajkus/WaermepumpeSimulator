@@ -735,13 +735,8 @@ else
         var (data, years) = WeatherSvc.ParseCsv(csvText);
         if (data.Count >= 100)
         {
-            _allWeatherData = data;
-            _availableYears = years;
-            _selectedYear = years.Max().ToString();
-            _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
-            _statusText = "Upload";
+            ApplyWeatherData(data, years, "Upload");
             _statusSub = $"{data.Count} Datenpunkte";
-            _statusClass = "text-blue-600";
             RunSimulation();
         }
     }
