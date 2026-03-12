@@ -28,6 +28,25 @@
         <span class="dismiss">X</span>
     </div>
 
+    <script>
+        (async function () {
+            try {
+                var resp = await fetch('version.txt?_=' + Date.now());
+                var version = (await resp.text()).trim();
+                var stored = localStorage.getItem('app-version');
+                if (stored && stored !== version) {
+                    localStorage.setItem('app-version', version);
+                    if ('caches' in window) {
+                        var names = await caches.keys();
+                        await Promise.all(names.map(function (n) { return caches.delete(n); }));
+                    }
+                    location.reload(true);
+                    return;
+                }
+                localStorage.setItem('app-version', version);
+            } catch (e) { }
+        })();
+    </script>
     <script src="_framework/blazor.webassembly.js"></script>
     <script>
         window.blazorGetLocation = function () {

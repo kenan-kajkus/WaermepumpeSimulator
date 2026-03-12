@@ -24,6 +24,9 @@ jobs:
       - name: Publish
         run: dotnet publish WaermepumpeSimulator/WaermepumpeSimulator.csproj -c Release -o ./publish
 
+      - name: Stamp version
+        run: git rev-parse --short HEAD | Out-File -NoNewline ./publish/wwwroot/version.txt
+
       - name: Deploy to IIS
         run: |
           if (!(Test-Path $env:DEPLOY_PATH)) {
