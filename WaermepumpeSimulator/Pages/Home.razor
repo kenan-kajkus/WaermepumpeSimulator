@@ -488,6 +488,8 @@
     private string _statusClass = "text-gray-500";
 
     private string? _geoLocationName;
+    private double? _geoLatitude;
+    private double? _geoLongitude;
     private bool _geoLoading;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
@@ -511,9 +513,14 @@
     {
         if (firstRender)
         {
+            await RestoreState();
             await LoadWeather();
             RunSimulation();
             StateHasChanged();
+        }
+        else
+        {
+            await SaveState();
         }
     }
 
@@ -522,16 +529,32 @@
         _statusText = "Lade...";
         _statusClass = "text-gray-500";
 
-        var (data, isSynthetic, years) = await WeatherSvc.LoadPresetWeatherAsync(_selectedCity, _startDate, _endDate);
+        List<WeatherDataPoint> data;
+        HashSet<int> years;
+        string displayName;
+
+        if (_selectedCity == "__geo__" && _geoLatitude.HasValue && _geoLongitude.HasValue)
+        {
+            (data, years) = await WeatherSvc.FetchOpenMeteoAsync(_geoLatitude.Value, _geoLongitude.Value, _startDate, _endDate);
+            displayName = _geoLocationName ?? "Mein Standort";
+        }
+        else
+        {
+            var (d, _, y) = await WeatherSvc.LoadPresetWeatherAsync(_selectedCity, _startDate, _endDate);
+            data = d;
+            years = y;
+            var profile = _profiles.Find(p => p.Key == _selectedCity);
+            displayName = profile?.Name ?? _selectedCity;
+        }
+
         _allWeatherData = data;
         _availableYears = years;
-        var profile = _profiles.Find(p => p.Key == _selectedCity);
 
         if (years.Count > 1)
         {
             _selectedYear = years.Max().ToString();
             _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
-            _statusText = profile?.Name ?? _selectedCity;
+            _statusText = displayName;
             _statusSub = $"Jahr {_selectedYear} ({_weatherData.Count}h)";
             _statusClass = "text-blue-600";
         }
@@ -540,7 +563,7 @@
             _selectedYear = years.First().ToString();
             _weatherData = data.Take(8760).ToList();
             while (_weatherData.Count < 8760) _weatherData.Add(_weatherData[_weatherData.Count % Math.Max(1, _weatherData.Count)]);
-            _statusText = profile?.Name ?? _selectedCity;
+            _statusText = displayName;
             _statusSub = $"Open-Meteo {_startDate:yyyy-MM-dd} – {_endDate:yyyy-MM-dd} ({data.Count}h)";
             _statusClass = "text-blue-600";
         }
@@ -592,7 +615,9 @@
             // Fetch weather from Open-Meteo Archive API using selected date range
             var (data, years) = await WeatherSvc.FetchOpenMeteoAsync(lat, lon, _startDate, _endDate);
 
-            _geoLocationName = $"{cityName}";
+            _geoLocationName = cityName;
+            _geoLatitude = lat;
+            _geoLongitude = lon;
             _selectedCity = "__geo__";
             _allWeatherData = data;
             _availableYears = years;
@@ -702,6 +727,54 @@
         _result = Engine.Run(Params, _weatherData);
         _eval = EvaluationService.Evaluate(_result);
         _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
+        _ = SaveState();
+    }
+
+    private const string StateKey = "wp-sim-state";
+
+    private async Task SaveState()
+    {
+        try
+        {
+            var state = new AppState
+            {
+                Params = Params,
+                SelectedCity = _selectedCity,
+                SelectedYear = _selectedYear,
+                SelectedPreset = _selectedPreset,
+                StartDate = _startDate,
+                EndDate = _endDate,
+                GeoLocationName = _geoLocationName,
+                GeoLatitude = _geoLatitude,
+                GeoLongitude = _geoLongitude
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(state);
+            await JS.InvokeVoidAsync("blazorStorage.set", StateKey, json);
+        }
+        catch { /* localStorage may be unavailable */ }
+    }
+
+    private async Task RestoreState()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("blazorStorage.get", StateKey);
+            if (string.IsNullOrEmpty(json)) return;
+
+            var state = System.Text.Json.JsonSerializer.Deserialize<AppState>(json);
+            if (state == null) return;
+
+            Params = state.Params;
+            _selectedCity = state.SelectedCity;
+            _selectedYear = state.SelectedYear;
+            _selectedPreset = state.SelectedPreset;
+            _startDate = state.StartDate;
+            _endDate = state.EndDate;
+            _geoLocationName = state.GeoLocationName;
+            _geoLatitude = state.GeoLatitude;
+            _geoLongitude = state.GeoLongitude;
+        }
+        catch { /* ignore corrupt/missing state */ }
     }
 
     private static string GetBgClass(string c) => c switch { "red" => "bg-red-50", "orange" => "bg-orange-50", "yellow" => "bg-yellow-50", "green" => "bg-green-50", _ => "bg-blue-50" };

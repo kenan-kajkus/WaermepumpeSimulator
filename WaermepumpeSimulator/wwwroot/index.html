@@ -39,6 +39,10 @@
                 );
             });
         };
+        window.blazorStorage = {
+            set: function (key, json) { localStorage.setItem(key, json); },
+            get: function (key) { return localStorage.getItem(key); }
+        };
     </script>
 
     <style>
