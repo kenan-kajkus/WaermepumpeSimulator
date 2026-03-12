@@ -6,7 +6,7 @@ public class XYPoint
     public decimal Y { get; set; }
 
     public XYPoint() { }
-    public XYPoint(double x, double y) { X = (decimal)x; Y = (decimal)y; }
+    public XYPoint(double x, double y) { X = (decimal)Math.Round(x, 2); Y = (decimal)Math.Round(y, 2); }
 }
 
 public class ScatterPoint
@@ -19,7 +19,7 @@ public class ScatterPoint
     public ScatterPoint() { }
     public ScatterPoint(double x, double y, string group)
     {
-        X = (decimal)x; Y = (decimal)y; Group = group;
+        X = (decimal)Math.Round(x, 2); Y = (decimal)Math.Round(y, 2); Group = group;
     }
 }
 

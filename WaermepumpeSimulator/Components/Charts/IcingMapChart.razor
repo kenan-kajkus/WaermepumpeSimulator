@@ -48,11 +48,11 @@
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Title = new Title { Text = "Icing Map" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Temperatur (°C)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Rel. Feuchte (%)" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Rel. Feuchte (%)" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(0); }" } }],
             Colors = ["rgba(0,0,200,0.15)", "#dc2626"],
             Markers = new Markers { Size = new List<double> { 3, 4 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(0); }" } }
         };
     }
 }

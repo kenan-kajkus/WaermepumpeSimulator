@@ -31,8 +31,8 @@
         _data = Monthly.Select(m => new MonthlyChartPoint
         {
             Month = m.Name,
-            Waerme = (decimal)m.Waerme,
-            Strom = (decimal)m.Strom
+            Waerme = (decimal)Math.Round(m.Waerme, 1),
+            Strom = (decimal)Math.Round(m.Strom, 1)
         }).ToList();
 
         _options = new ApexChartOptions<MonthlyChartPoint>
@@ -42,7 +42,8 @@
             PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { Horizontal = false, ColumnWidth = "60%" } },
             Colors = ["#3b82f6", "#f97316"],
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Yaxis = [new YAxis { Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(0); }" } }],
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(0); }" } }
         };
     }
 }

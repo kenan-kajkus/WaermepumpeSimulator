@@ -62,12 +62,12 @@
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Title = new Title { Text = "Verlauf & Taktung" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde im Jahr" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#1f2937", "#9ca3af", "#dc2626"],
             Stroke = new Stroke { Width = new List<double> { 2, 2, 0 }, DashArray = new List<double> { 0, 4, 0 } },
             Markers = new Markers { Size = new List<double> { 0, 0, 3 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
     }
 

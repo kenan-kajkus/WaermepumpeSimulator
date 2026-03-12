@@ -50,11 +50,11 @@
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Title = new Title { Text = "Leistung" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#dc2626", "#7f1d1d", "#9ca3af"],
             Stroke = new Stroke { Width = new List<double> { 2, 2, 2 }, DashArray = new List<double> { 0, 4, 0 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
     }
 }

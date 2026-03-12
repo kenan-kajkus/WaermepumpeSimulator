@@ -43,11 +43,11 @@
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Title = new Title { Text = "Januar Woche (Temp vs Taupunkt)" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "°C" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "°C" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#2563eb", "#9ca3af"],
             Stroke = new Stroke { Width = new List<double> { 2, 2 }, DashArray = new List<double> { 0, 4 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
     }
 }

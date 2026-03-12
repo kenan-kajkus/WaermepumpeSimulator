@@ -76,12 +76,12 @@
         {
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#7e22ce", "#dc2626", "#f59e0b", "#22c55e", "#06b6d4", "rgba(255,0,0,0.2)", "rgba(0,0,0,0.2)"],
             Markers = new Markers { Size = new List<double>(Enumerable.Repeat(3.0, _groups.Count).Concat([0.0, 0.0])) },
             Stroke = new Stroke { Width = new List<double>(Enumerable.Repeat(0.0, _groups.Count).Concat([2.0, 2.0])) },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
     }
 }

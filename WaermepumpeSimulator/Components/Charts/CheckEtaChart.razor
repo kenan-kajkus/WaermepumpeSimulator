@@ -61,12 +61,12 @@
             Chart = new Chart { Toolbar = new Toolbar { Show = false } },
             Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(2); }" } }],
             Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f"],
             Stroke = new Stroke { Width = new List<double> { 2, 0, 2, 0 } },
             Markers = new Markers { Size = new List<double> { 0, 6, 0, 6 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2); }" } }
         };
     }
 }

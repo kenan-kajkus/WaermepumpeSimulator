@@ -48,9 +48,9 @@
             _data.Add(new DurationPoint
             {
                 Hour = i,
-                Wp = (decimal)sorted[i].wp,
-                Stab = (decimal)sorted[i].st,
-                Defizit = (decimal)sorted[i].df
+                Wp = (decimal)Math.Round(sorted[i].wp, 2),
+                Stab = (decimal)Math.Round(sorted[i].st, 2),
+                Defizit = (decimal)Math.Round(sorted[i].df, 2)
             });
         }
 
@@ -63,12 +63,12 @@
             },
             Title = new Title { Text = "Dauerlinie" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunden (sortiert)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" } }],
+            Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#22c55e", "#ef4444", "#1f2937"],
             Stroke = new Stroke { Width = new List<double> { 0, 0, 0 } },
             Fill = new Fill { Opacity = new List<double> { 0.6, 0.8, 0.7 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true }
+            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
         };
     }
 }
