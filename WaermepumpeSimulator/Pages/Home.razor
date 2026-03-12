@@ -87,6 +87,13 @@ else
                 <i class="fas fa-calculator"></i>
                 <span>BERECHNEN</span>
             </button>
+
+            @if (_result != null)
+            {
+                <button @onclick="AddToComparison" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded shadow transition text-xs flex items-center gap-1 whitespace-nowrap" title="Aktuelles Ergebnis zum Vergleich hinzufügen">
+                    <i class="fas fa-plus"></i> Vergleich
+                </button>
+            }
         </div>
     </header>
 
@@ -249,6 +256,67 @@ else
 
         <!-- Main Content -->
         <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            @if (_comparisonEntries.Count > 0)
+            {
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-xl font-bold text-gray-800 border-b-2 border-purple-200 pb-2 flex items-center gap-2">
+                            <i class="fas fa-scale-balanced text-purple-500"></i> Wärmepumpen Vergleich
+                        </h2>
+                        <button @onclick="ClearComparison" class="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
+                            <i class="fas fa-trash"></i> Alle entfernen
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-lg shadow overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modell</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Standort</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">JAZ</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Strom (kWh)</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Kosten WP (€)</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ersparnis (€)</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Heizstab %</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Taktung %</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Abtau (h)</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @{ int bestJazIdx = _comparisonEntries.IndexOf(_comparisonEntries.MaxBy(e => e.Jaz)!); }
+                                @for (int i = 0; i < _comparisonEntries.Count; i++)
+                                {
+                                    var entry = _comparisonEntries[i];
+                                    var isBest = i == bestJazIdx;
+                                    var rowClass = isBest ? "bg-green-50" : "";
+                                    var idx = i;
+                                    <tr class="@rowClass">
+                                        <td class="px-4 py-2 font-semibold">
+                                            @if (isBest) { <i class="fas fa-trophy text-yellow-500 mr-1"></i> }
+                                            @entry.Name
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-500">@entry.City</td>
+                                        <td class="px-4 py-2 text-right font-bold text-blue-600">@entry.Jaz.ToString("F2")</td>
+                                        <td class="px-4 py-2 text-right">@Math.Round(entry.TotalStrom)</td>
+                                        <td class="px-4 py-2 text-right">@Math.Round(entry.KostenWp) €</td>
+                                        <td class="px-4 py-2 text-right @(entry.Ersparnis > 0 ? "text-green-600" : "text-red-600") font-semibold">@Math.Round(entry.Ersparnis) €</td>
+                                        <td class="px-4 py-2 text-right @(entry.HeizstabAnteil > 5 ? "text-red-500" : "")">@entry.HeizstabAnteil.ToString("F1")%</td>
+                                        <td class="px-4 py-2 text-right @(entry.CyclingPercent > 20 ? "text-yellow-600" : "")">@entry.CyclingPercent.ToString("F1")%</td>
+                                        <td class="px-4 py-2 text-right">@entry.IcingHours</td>
+                                        <td class="px-4 py-2 text-center">
+                                            <button @onclick="() => RemoveComparison(idx)" class="text-gray-400 hover:text-red-500 transition">
+                                                <i class="fas fa-xmark"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
             @if (_result != null)
             {
                 <!-- Verdict Banner -->
@@ -488,6 +556,7 @@ else
 
     private List<ClimateProfile> _profiles = [];
     private List<HeatPumpPreset> _presets = [];
+    private List<ComparisonEntry> _comparisonEntries = [];
     private List<WeatherDataPoint> _allWeatherData = [];
     private List<WeatherDataPoint> _weatherData = [];
     private HashSet<int> _availableYears = [];
@@ -746,6 +815,52 @@ else
         _ = SaveState();
     }
 
+    private void AddToComparison()
+    {
+        if (_result == null) return;
+
+        var presetName = _selectedPreset != "custom"
+            ? _presets.Find(p => p.Key == _selectedPreset)?.Name ?? "Benutzerdefiniert"
+            : "Benutzerdefiniert";
+
+        var cityName = _selectedCity == "__geo__"
+            ? _geoLocationName ?? "Mein Standort"
+            : _profiles.Find(p => p.Key == _selectedCity)?.Name ?? _selectedCity;
+
+        _comparisonEntries.Add(new ComparisonEntry
+        {
+            Name = presetName,
+            City = cityName,
+            Jaz = _result.Jaz,
+            TotalStrom = _result.TotalStrom,
+            TotalWaerme = _result.TotalWaerme,
+            HeizstabAnteil = _result.HeizstabAnteil,
+            KostenWp = _result.KostenWp,
+            Ersparnis = _result.Ersparnis,
+            CyclingPercent = _result.CyclingPercent,
+            IcingHours = _result.IcingHours,
+            DeficitHours = _result.DeficitHours,
+            LoadAtNat = _result.LoadAtNat,
+            WpAtNat = _result.WpAtNat
+        });
+        _ = SaveState();
+    }
+
+    private void RemoveComparison(int index)
+    {
+        if (index >= 0 && index < _comparisonEntries.Count)
+        {
+            _comparisonEntries.RemoveAt(index);
+            _ = SaveState();
+        }
+    }
+
+    private void ClearComparison()
+    {
+        _comparisonEntries.Clear();
+        _ = SaveState();
+    }
+
     private const string StateKey = "wp-sim-state";
 
     private async Task SaveState()
@@ -762,7 +877,8 @@ else
                 EndDate = _endDate,
                 GeoLocationName = _geoLocationName,
                 GeoLatitude = _geoLatitude,
-                GeoLongitude = _geoLongitude
+                GeoLongitude = _geoLongitude,
+                ComparisonEntries = _comparisonEntries
             };
             var json = System.Text.Json.JsonSerializer.Serialize(state);
             await JS.InvokeVoidAsync("blazorStorage.set", StateKey, json);
@@ -789,6 +905,7 @@ else
             _geoLocationName = state.GeoLocationName;
             _geoLatitude = state.GeoLatitude;
             _geoLongitude = state.GeoLongitude;
+            _comparisonEntries = state.ComparisonEntries ?? [];
         }
         catch { /* ignore corrupt/missing state */ }
     }

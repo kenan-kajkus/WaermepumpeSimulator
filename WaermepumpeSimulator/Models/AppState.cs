@@ -11,4 +11,5 @@ public class AppState
     public string? GeoLocationName { get; set; }
     public double? GeoLatitude { get; set; }
     public double? GeoLongitude { get; set; }
+    public List<ComparisonEntry> ComparisonEntries { get; set; } = [];
 }
