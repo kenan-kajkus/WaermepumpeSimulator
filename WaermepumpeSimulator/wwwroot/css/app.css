@@ -29,6 +29,17 @@ body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
 
 textarea.input-field { resize: vertical; font-family: monospace; font-size: 0.75rem; }
 
+@media print {
+    header, aside, .no-print { display: none !important; }
+    .flex.flex-1.overflow-hidden { display: block !important; }
+    main { overflow: visible !important; padding: 0 !important; }
+    .flex.flex-col.h-screen.overflow-hidden { display: block !important; height: auto !important; overflow: visible !important; }
+    .chart-container { break-inside: avoid; page-break-inside: avoid; min-height: auto !important; box-shadow: none !important; border: 1px solid #e5e7eb; }
+    .opacity-40 { opacity: 1 !important; }
+    body { background: white !important; }
+    @page { margin: 1.5cm; }
+}
+
 #blazor-error-ui {
     background: lightyellow; bottom: 0; box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
     display: none; left: 0; padding: 0.6rem 1.25rem 0.7rem 1.25rem; position: fixed; width: 100%; z-index: 1000;
