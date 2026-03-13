@@ -230,6 +230,15 @@ else
                     <label class="input-label text-blue-600 font-bold"><i class="fas fa-robot mr-1"></i> Modell Vorlage</label>
                     <select @bind="_selectedPreset" @bind:after="OnPresetChanged" class="input-field bg-blue-50 text-blue-900 border-blue-200 font-semibold cursor-pointer">
                         <option value="custom">-- Benutzerdefiniert --</option>
+                        @if (_customPresets.Count > 0)
+                        {
+                            <optgroup label="Eigene Modelle">
+                                @foreach (var cp in _customPresets)
+                                {
+                                    <option value="@cp.Key">@cp.Name</option>
+                                }
+                            </optgroup>
+                        }
                         @foreach (var group in _presets.GroupBy(p => p.Group))
                         {
                             <optgroup label="@group.Key">
@@ -241,16 +250,25 @@ else
                         }
                     </select>
                 </div>
+                <div class="input-group flex gap-2 mb-2">
+                    <button @onclick="SaveCustomPreset" class="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs py-1.5 px-3 rounded border border-blue-200 flex items-center justify-center gap-1">
+                        <i class="fas fa-star"></i> Als Eigene speichern
+                    </button>
+                    @if (_selectedPreset.StartsWith("user_"))
+                    {
+                        <button @onclick="DeleteCustomPreset" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded border border-red-200 flex items-center justify-center gap-1">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    }
+                </div>
                 <div class="input-group flex gap-2 mb-3">
                     <button @onclick="SaveKennfeld" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1">
-                        <i class="fas fa-download"></i> Speichern
+                        <i class="fas fa-download"></i> Export
                     </button>
                     <label class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1 cursor-pointer">
-                        <i class="fas fa-upload"></i> Laden
+                        <i class="fas fa-upload"></i> Import
                         <InputFile OnChange="LoadKennfeld" accept=".json" class="hidden" />
                     </label>
-                    <i class="fas fa-circle-question help-icon self-center"></i>
-                    <span class="tooltip tooltip-right">Speichert/lädt die aktuellen Kennfelddaten (PMax, PMin, COP) als JSON-Datei.<br><br><b>Format:</b><br><code>{"PMax": "-7, 6.8\n2, 7.0",<br>"PMin": "",<br>"CopData": "35, -7, 2.80\n..."}</code></span>
                 </div>
                 <div class="text-xs text-gray-500 mb-2">Format: Temp,Wert (Neue Zeile für neuen Punkt)</div>
                 <div class="input-group">
@@ -577,6 +595,7 @@ else
 
     private List<ClimateProfile> _profiles = [];
     private List<HeatPumpPreset> _presets = [];
+    private List<HeatPumpPreset> _customPresets = [];
     private List<ComparisonEntry> _comparisonEntries = [];
     private List<WeatherDataPoint> _allWeatherData = [];
     private List<WeatherDataPoint> _weatherData = [];
@@ -620,6 +639,7 @@ else
     {
         if (firstRender)
         {
+            await LoadCustomPresets();
             await RestoreState();
             ApplySharedConfig();
             if (!string.IsNullOrEmpty(_selectedCity))
@@ -781,7 +801,8 @@ else
     private void OnPresetChanged()
     {
         if (_selectedPreset == "custom") return;
-        var preset = _presets.Find(p => p.Key == _selectedPreset);
+        var preset = _presets.Find(p => p.Key == _selectedPreset)
+                     ?? _customPresets.Find(p => p.Key == _selectedPreset);
         if (preset == null) return;
         Params.RawPMax = preset.PMax;
         Params.RawPMin = preset.PMin ?? "";
@@ -789,6 +810,52 @@ else
     }
 
     private void ResetPreset() => _selectedPreset = "custom";
+
+    private const string CustomPresetsKey = "wp-custom-presets";
+
+    private async Task SaveCustomPreset()
+    {
+        var name = await JS.InvokeAsync<string?>("prompt", "Name für die Wärmepumpe:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var key = "user_" + Guid.NewGuid().ToString("N")[..8];
+        var preset = new HeatPumpPreset
+        {
+            Key = key,
+            Name = name.Trim(),
+            Group = "Eigene Modelle",
+            PMax = Params.RawPMax,
+            PMin = Params.RawPMin,
+            CopData = Params.RawCopData
+        };
+        _customPresets.Add(preset);
+        _selectedPreset = key;
+        await PersistCustomPresets();
+    }
+
+    private async Task DeleteCustomPreset()
+    {
+        _customPresets.RemoveAll(p => p.Key == _selectedPreset);
+        _selectedPreset = "custom";
+        await PersistCustomPresets();
+    }
+
+    private async Task PersistCustomPresets()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(_customPresets);
+        await JS.InvokeVoidAsync("blazorStorage.set", CustomPresetsKey, json);
+    }
+
+    private async Task LoadCustomPresets()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("blazorStorage.get", CustomPresetsKey);
+            if (!string.IsNullOrEmpty(json))
+                _customPresets = System.Text.Json.JsonSerializer.Deserialize<List<HeatPumpPreset>>(json) ?? [];
+        }
+        catch { _customPresets = []; }
+    }
 
     private async Task SaveKennfeld()
     {
