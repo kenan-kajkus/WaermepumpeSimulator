@@ -54,7 +54,7 @@ else
                 @if (_geoLatitude.HasValue && _geoLongitude.HasValue)
                 {
                     <a href="https://www.openstreetmap.org/?mlat=@(_geoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))&mlon=@(_geoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))#map=12/@(_geoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))/@(_geoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))"
-                       target="_blank" class="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-0.5" title="Standort auf OpenStreetMap anzeigen">
+                       target="_blank" class="bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 px-2 rounded border border-blue-200 transition text-xs flex items-center gap-1" title="Standort auf OpenStreetMap anzeigen">
                         <i class="fas fa-map-location-dot"></i>
                     </a>
                 }
@@ -953,18 +953,43 @@ else
 
     private async Task ShareConfig()
     {
-        var share = new SharedConfig
-        {
-            Params = Params,
-            City = _selectedCity,
-            Preset = _selectedPreset,
-            GeoName = _geoLocationName,
-            GeoLat = _geoLatitude,
-            GeoLon = _geoLongitude
-        };
-        var json = System.Text.Json.JsonSerializer.Serialize(share);
-        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-        var url = Nav.BaseUri + "#cfg=" + base64;
+        var p = Params;
+        var d = new SimulationParameters();
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var q = new List<string>();
+
+        void Add(string key, double val, double def) { if (Math.Abs(val - def) > 0.0001) q.Add($"{key}={val.ToString(ic)}"); }
+        void AddStr(string key, string val, string def) { if (val != def) q.Add($"{key}={Uri.EscapeDataString(val)}"); }
+        void AddBool(string key, bool val, bool def) { if (val != def) q.Add($"{key}={(val ? "1" : "0")}"); }
+        void AddInt(string key, int val, int def) { if (val != def) q.Add($"{key}={val}"); }
+
+        Add("jv", p.Jahresverbrauch, d.Jahresverbrauch);
+        Add("wg", p.Wirkungsgrad, d.Wirkungsgrad);
+        Add("wwa", p.WarmwasserAnteil, d.WarmwasserAnteil);
+        Add("hg", p.Heizgrenze, d.Heizgrenze);
+        Add("nat", p.NormAussentemperatur, d.NormAussentemperatur);
+        Add("rst", p.RaumSollTemperatur, d.RaumSollTemperatur);
+        Add("ps", p.PreisStrom, d.PreisStrom);
+        Add("pa", p.PreisAlt, d.PreisAlt);
+        Add("vlmax", p.VorlaufMax, d.VorlaufMax);
+        Add("vlmin", p.VorlaufMin, d.VorlaufMin);
+        Add("wwt", p.WarmwasserTemp, d.WarmwasserTemp);
+        Add("hsm", p.HeizstabMax, d.HeizstabMax);
+        AddBool("naa", p.NachtabsenkungAktiv, d.NachtabsenkungAktiv);
+        AddInt("ns", p.NachtStart, d.NachtStart);
+        AddInt("ne", p.NachtEnde, d.NachtEnde);
+        Add("ndt", p.NachtDeltaT, d.NachtDeltaT);
+        AddStr("pmax", p.RawPMax, d.RawPMax);
+        AddStr("pmin", p.RawPMin, d.RawPMin);
+        AddStr("cop", p.RawCopData, d.RawCopData);
+        AddStr("city", _selectedCity, "");
+        AddStr("preset", _selectedPreset, "custom");
+
+        if (_geoLocationName != null) q.Add($"gn={Uri.EscapeDataString(_geoLocationName)}");
+        if (_geoLatitude.HasValue) q.Add($"glat={_geoLatitude.Value.ToString(ic)}");
+        if (_geoLongitude.HasValue) q.Add($"glon={_geoLongitude.Value.ToString(ic)}");
+
+        var url = Nav.BaseUri + (q.Count > 0 ? "?" + string.Join("&", q) : "");
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
         _shareCopied = true;
         StateHasChanged();
@@ -977,32 +1002,49 @@ else
     {
         try
         {
-            var uri = Nav.Uri;
-            var hashIdx = uri.IndexOf("#cfg=");
-            if (hashIdx < 0) return;
-            var base64 = uri[(hashIdx + 5)..];
-            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-            var share = System.Text.Json.JsonSerializer.Deserialize<SharedConfig>(json);
-            if (share == null) return;
+            var uri = new Uri(Nav.Uri);
+            var query = uri.Query;
+            if (string.IsNullOrEmpty(query)) return;
 
-            Params = share.Params;
-            _selectedCity = share.City;
-            _selectedPreset = share.Preset;
-            _geoLocationName = share.GeoName;
-            _geoLatitude = share.GeoLat;
-            _geoLongitude = share.GeoLon;
+            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            var pars = System.Web.HttpUtility.ParseQueryString(query);
+            if (pars.Count == 0) return;
+
+            double D(string key, double def) => pars[key] is string v && double.TryParse(v, ic, out var r) ? r : def;
+            int I(string key, int def) => pars[key] is string v && int.TryParse(v, out var r) ? r : def;
+            string S(string key, string def) => pars[key] ?? def;
+            bool B(string key, bool def) => pars[key] is string v ? v == "1" : def;
+
+            Params.Jahresverbrauch = D("jv", Params.Jahresverbrauch);
+            Params.Wirkungsgrad = D("wg", Params.Wirkungsgrad);
+            Params.WarmwasserAnteil = D("wwa", Params.WarmwasserAnteil);
+            Params.Heizgrenze = D("hg", Params.Heizgrenze);
+            Params.NormAussentemperatur = D("nat", Params.NormAussentemperatur);
+            Params.RaumSollTemperatur = D("rst", Params.RaumSollTemperatur);
+            Params.PreisStrom = D("ps", Params.PreisStrom);
+            Params.PreisAlt = D("pa", Params.PreisAlt);
+            Params.VorlaufMax = D("vlmax", Params.VorlaufMax);
+            Params.VorlaufMin = D("vlmin", Params.VorlaufMin);
+            Params.WarmwasserTemp = D("wwt", Params.WarmwasserTemp);
+            Params.HeizstabMax = D("hsm", Params.HeizstabMax);
+            Params.NachtabsenkungAktiv = B("naa", Params.NachtabsenkungAktiv);
+            Params.NachtStart = I("ns", Params.NachtStart);
+            Params.NachtEnde = I("ne", Params.NachtEnde);
+            Params.NachtDeltaT = D("ndt", Params.NachtDeltaT);
+            Params.RawPMax = S("pmax", Params.RawPMax);
+            Params.RawPMin = S("pmin", Params.RawPMin);
+            Params.RawCopData = S("cop", Params.RawCopData);
+
+            var city = S("city", "");
+            if (!string.IsNullOrEmpty(city)) _selectedCity = city;
+            var preset = S("preset", "");
+            if (!string.IsNullOrEmpty(preset)) _selectedPreset = preset;
+
+            _geoLocationName = pars["gn"];
+            if (pars["glat"] is string lat && double.TryParse(lat, ic, out var latV)) _geoLatitude = latV;
+            if (pars["glon"] is string lon && double.TryParse(lon, ic, out var lonV)) _geoLongitude = lonV;
         }
         catch { /* ignore invalid share data */ }
-    }
-
-    private class SharedConfig
-    {
-        public SimulationParameters Params { get; set; } = new();
-        public string City { get; set; } = "";
-        public string Preset { get; set; } = "custom";
-        public string? GeoName { get; set; }
-        public double? GeoLat { get; set; }
-        public double? GeoLon { get; set; }
     }
 
     private static string GetBgClass(string c) => c switch { "red" => "bg-red-50", "orange" => "bg-orange-50", "yellow" => "bg-yellow-50", "green" => "bg-green-50", _ => "bg-blue-50" };
