@@ -34,8 +34,10 @@
                 var resp = await fetch('version.txt?_=' + Date.now());
                 var version = (await resp.text()).trim();
                 var stored = localStorage.getItem('app-version');
-                if (stored && stored !== version) {
+                var needsReload = (stored && stored !== version) || (version === 'dev' && !sessionStorage.getItem('dev-reloaded'));
+                if (needsReload) {
                     localStorage.setItem('app-version', version);
+                    if (version === 'dev') sessionStorage.setItem('dev-reloaded', '1');
                     if ('caches' in window) {
                         var names = await caches.keys();
                         await Promise.all(names.map(function (n) { return caches.delete(n); }));
