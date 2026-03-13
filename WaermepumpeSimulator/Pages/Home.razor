@@ -4,6 +4,7 @@
 @inject SimulationEngine Engine
 @inject IJSRuntime JS
 @inject HttpClient Http
+@inject NavigationManager Nav
 
 <PageTitle>WP Simulator & JAZ Rechner</PageTitle>
 
@@ -27,6 +28,10 @@ else
             <div class="relative flex items-center">
                 <span class="text-xs text-gray-500 mr-2">Standort:</span>
                 <select @bind="_selectedCity" @bind:after="OnLocationChanged" class="border border-gray-300 rounded px-2 py-2 text-xs w-32 focus:outline-none focus:border-blue-500 bg-white">
+                    @if (string.IsNullOrEmpty(_selectedCity))
+                    {
+                        <option value="">— Standort wählen —</option>
+                    }
                     @foreach (var p in _profiles)
                     {
                         <option value="@p.Key">@p.DisplayName</option>
@@ -46,6 +51,13 @@ else
                         <i class="fas fa-location-crosshairs"></i>
                     }
                 </button>
+                @if (_geoLatitude.HasValue && _geoLongitude.HasValue)
+                {
+                    <a href="https://www.openstreetmap.org/?mlat=@(_geoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))&mlon=@(_geoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))#map=12/@(_geoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))/@(_geoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                       target="_blank" class="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-0.5" title="Standort auf OpenStreetMap anzeigen">
+                        <i class="fas fa-map-location-dot"></i>
+                    </a>
+                }
             </div>
 
             @if (_availableYears.Count > 0)
@@ -95,6 +107,10 @@ else
                     <i class="fas fa-plus"></i> Vergleich
                 </button>
             }
+
+            <button @onclick="ShareConfig" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded shadow transition text-xs flex items-center gap-1 whitespace-nowrap" title="Link mit aktueller Konfiguration kopieren">
+                <i class="fas @(_shareCopied ? "fa-check" : "fa-share-nodes")"></i> @(_shareCopied ? "Kopiert!" : "Teilen")
+            </button>
         </div>
     </header>
 
@@ -566,7 +582,7 @@ else
     private List<WeatherDataPoint> _weatherData = [];
     private HashSet<int> _availableYears = [];
 
-    private string _selectedCity = "frankfurt";
+    private string _selectedCity = "";
     private string _selectedYear = "2023";
     private string _selectedPreset = "custom";
     private string _activeTab = "dashboard";
@@ -581,6 +597,7 @@ else
     private double? _geoLongitude;
     private bool _geoLoading;
     private bool _simulating;
+    private bool _shareCopied;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
@@ -604,8 +621,12 @@ else
         if (firstRender)
         {
             await RestoreState();
-            await LoadWeather();
-            RunSimulation();
+            ApplySharedConfig();
+            if (!string.IsNullOrEmpty(_selectedCity))
+            {
+                await LoadWeather();
+                RunSimulation();
+            }
             _initializing = false;
             StateHasChanged();
         }
@@ -667,6 +688,7 @@ else
 
     private async Task OnLocationChanged()
     {
+        if (string.IsNullOrEmpty(_selectedCity)) return;
         await LoadWeather();
         RunSimulation();
     }
@@ -927,6 +949,60 @@ else
             _comparisonEntries = state.ComparisonEntries ?? [];
         }
         catch { /* ignore corrupt/missing state */ }
+    }
+
+    private async Task ShareConfig()
+    {
+        var share = new SharedConfig
+        {
+            Params = Params,
+            City = _selectedCity,
+            Preset = _selectedPreset,
+            GeoName = _geoLocationName,
+            GeoLat = _geoLatitude,
+            GeoLon = _geoLongitude
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(share);
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var url = Nav.BaseUri + "#cfg=" + base64;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        _shareCopied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _shareCopied = false;
+        StateHasChanged();
+    }
+
+    private void ApplySharedConfig()
+    {
+        try
+        {
+            var uri = Nav.Uri;
+            var hashIdx = uri.IndexOf("#cfg=");
+            if (hashIdx < 0) return;
+            var base64 = uri[(hashIdx + 5)..];
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+            var share = System.Text.Json.JsonSerializer.Deserialize<SharedConfig>(json);
+            if (share == null) return;
+
+            Params = share.Params;
+            _selectedCity = share.City;
+            _selectedPreset = share.Preset;
+            _geoLocationName = share.GeoName;
+            _geoLatitude = share.GeoLat;
+            _geoLongitude = share.GeoLon;
+        }
+        catch { /* ignore invalid share data */ }
+    }
+
+    private class SharedConfig
+    {
+        public SimulationParameters Params { get; set; } = new();
+        public string City { get; set; } = "";
+        public string Preset { get; set; } = "custom";
+        public string? GeoName { get; set; }
+        public double? GeoLat { get; set; }
+        public double? GeoLon { get; set; }
     }
 
     private static string GetBgClass(string c) => c switch { "red" => "bg-red-50", "orange" => "bg-orange-50", "yellow" => "bg-yellow-50", "green" => "bg-green-50", _ => "bg-blue-50" };

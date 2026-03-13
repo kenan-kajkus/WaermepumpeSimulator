@@ -3,7 +3,7 @@ namespace WaermepumpeSimulator.Models;
 public class AppState
 {
     public SimulationParameters Params { get; set; } = new();
-    public string SelectedCity { get; set; } = "frankfurt";
+    public string SelectedCity { get; set; } = "";
     public string SelectedYear { get; set; } = "2023";
     public string SelectedPreset { get; set; } = "custom";
     public DateTime StartDate { get; set; }
