@@ -278,6 +278,53 @@ dotnet run --project WaermepumpeSimulator
 
 Die App startet unter `https://localhost:5001` (oder dem konfigurierten Port).
 
+## Docker
+
+Die App kann als Docker-Container mit nginx als Webserver betrieben werden.
+
+### Build & Run
+
+```bash
+# Image bauen (aus dem Projektverzeichnis)
+docker build -t wp-simulator ./WaermepumpeSimulator
+
+# Container starten
+docker run -d -p 8080:80 --name wp-simulator wp-simulator
+```
+
+Die App ist dann unter `http://localhost:8080` erreichbar.
+
+### Architektur
+
+Das Dockerfile nutzt einen **Multi-Stage Build**:
+
+1. **Build-Stage** (`dotnet/sdk:9.0`) – Kompiliert die Blazor WebAssembly App mit `dotnet publish`
+2. **Runtime-Stage** (`nginx:alpine`) – Kopiert nur die statischen `wwwroot`-Dateien in den nginx-Container
+
+Das Ergebnis ist ein schlankes Image (~30 MB), da nur nginx und die statischen Dateien (HTML, JS, WASM, DLLs) enthalten sind.
+
+### nginx-Konfiguration
+
+Die mitgelieferte `nginx.conf` konfiguriert:
+- **SPA-Routing**: Alle Routen werden auf `index.html` umgeleitet (`try_files $uri $uri/ /index.html`)
+- **MIME-Types**: `.wasm` und `.dll` werden korrekt ausgeliefert
+- **gzip-Kompression**: Für WASM, JS, JSON, CSS und HTML aktiviert
+
+### docker-compose (optional)
+
+```yaml
+services:
+  wp-simulator:
+    build: ./WaermepumpeSimulator
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
 ## Deployment
 
 Das Deployment erfolgt automatisch über GitHub Actions bei Push auf `master`:
