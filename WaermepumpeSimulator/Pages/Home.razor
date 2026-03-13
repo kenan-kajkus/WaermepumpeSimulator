@@ -124,38 +124,38 @@ else
                     <div class="input-group">
                         <label class="input-label">Wärmeverbrauch (Warmwasser + Raum) (kWh/a) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Der bisherige Jahresverbrauch deiner Öl- oder Gasheizung in kWh. (1 Liter Öl ≈ 10 kWh, 1 m³ Gas ≈ 10 kWh)</span>
-                        <input type="number" @bind="Params.Jahresverbrauch" @bind:after="OnParamChanged" class="input-field @(Params.Jahresverbrauch <= 0 ? "!border-red-400" : "")" />
-                        @if (Params.Jahresverbrauch <= 0) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+                        <input type="number" @bind="Params.Jahresverbrauch" @bind:after="OnParamChanged" class="input-field @(_vJahresverbrauch ? "!border-red-400" : "")" />
+                        @if (_vJahresverbrauch) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">Wirkungsgrad alte Heizung (0.8-1.0) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Jahresnutzungsgrad der alten Öl- oder Gasheizung.<br>Standardkessel: ca. 0.8<br>Brennwert/Neu: ca. 0.95</span>
-                        <input type="number" @bind="Params.Wirkungsgrad" @bind:after="OnParamChanged" step="0.01" class="input-field @(Params.Wirkungsgrad is <= 0 or > 1.0 ? "!border-red-400" : "")" />
-                        @if (Params.Wirkungsgrad is <= 0 or > 1.0) { <span class="text-[10px] text-red-500">Muss zwischen 0 und 1.0 liegen</span> }
+                        <input type="number" @bind="Params.Wirkungsgrad" @bind:after="OnParamChanged" step="0.01" class="input-field @(_vWirkungsgrad ? "!border-red-400" : "")" />
+                        @if (_vWirkungsgrad) { <span class="text-[10px] text-red-500">Muss zwischen 0 und 1.0 liegen</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">WW Anteil des Wärmeverbrauchs (%) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Wieviel eures Wärmeverbrauchs geht ins Warmwasser?<br>Typisch: 15-20% für 4 Personen.</span>
-                        <input type="number" @bind="Params.WarmwasserAnteil" @bind:after="OnParamChanged" class="input-field @(Params.WarmwasserAnteil is < 0 or > 100 ? "!border-red-400" : "")" />
-                        @if (Params.WarmwasserAnteil is < 0 or > 100) { <span class="text-[10px] text-red-500">Muss 0–100% sein</span> }
+                        <input type="number" @bind="Params.WarmwasserAnteil" @bind:after="OnParamChanged" class="input-field @(_vWwAnteil ? "!border-red-400" : "")" />
+                        @if (_vWwAnteil) { <span class="text-[10px] text-red-500">Muss 0–100% sein</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">Heizgrenze (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Ab welcher Außentemperatur heizt ihr? (Altbau: 15°C, Neubau: 10-12°C, Durchheizen: 22°)</span>
-                        <input type="number" @bind="Params.Heizgrenze" @bind:after="OnParamChanged" class="input-field @(Params.Heizgrenze <= Params.NormAussentemperatur ? "!border-red-400" : "")" />
-                        @if (Params.Heizgrenze <= Params.NormAussentemperatur) { <span class="text-[10px] text-red-500">Muss &gt; NAT (@(Params.NormAussentemperatur)°C) sein</span> }
+                        <input type="number" @bind="Params.Heizgrenze" @bind:after="OnParamChanged" class="input-field @(_vHeizgrenze ? "!border-red-400" : "")" />
+                        @if (_vHeizgrenze) { <span class="text-[10px] text-red-500">Muss &gt; NAT (@(Params.NormAussentemperatur)°C) sein</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">NAT (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Norm-Außentemperatur für deinen Standort.<br><a href="https://www.waermepumpe.de/werkzeuge/klimakarte/" target="_blank">Hier Klimakarte öffnen</a></span>
-                        <input type="number" @bind="Params.NormAussentemperatur" @bind:after="OnParamChanged" class="input-field @(Params.NormAussentemperatur >= Params.Heizgrenze ? "!border-red-400" : "")" />
-                        @if (Params.NormAussentemperatur >= Params.Heizgrenze) { <span class="text-[10px] text-red-500">Muss &lt; Heizgrenze (@(Params.Heizgrenze)°C) sein</span> }
+                        <input type="number" @bind="Params.NormAussentemperatur" @bind:after="OnParamChanged" class="input-field @(_vNat ? "!border-red-400" : "")" />
+                        @if (_vNat) { <span class="text-[10px] text-red-500">Muss &lt; Heizgrenze (@(Params.Heizgrenze)°C) sein</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">Raum Soll (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Deine typische, gewünschte Raumtemperatur (z.B. 21°C oder 22°C).</span>
-                        <input type="number" @bind="Params.RaumSollTemperatur" @bind:after="OnParamChanged" class="input-field @(Params.RaumSollTemperatur is < 15 or > 30 ? "!border-orange-400" : "")" />
-                        @if (Params.RaumSollTemperatur is < 15 or > 30) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 18–24°C)</span> }
+                        <input type="number" @bind="Params.RaumSollTemperatur" @bind:after="OnParamChanged" class="input-field @(_wRaumSoll ? "!border-orange-400" : "")" />
+                        @if (_wRaumSoll) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 18–24°C)</span> }
                     </div>
                 </div>
             </div>
@@ -166,14 +166,14 @@ else
                 <div class="input-group">
                     <label class="input-label">Strompreis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Dein erwarteter Strompreis für die WP (oft gibt es spezielle WP-Tarife, ca. 20-30 ct).</span>
-                    <input type="number" @bind="Params.PreisStrom" @bind:after="OnParamChanged" step="0.01" class="input-field @(Params.PreisStrom <= 0 ? "!border-red-400" : "")" />
-                    @if (Params.PreisStrom <= 0) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+                    <input type="number" @bind="Params.PreisStrom" @bind:after="OnParamChanged" step="0.01" class="input-field @(_vPreisStrom ? "!border-red-400" : "")" />
+                    @if (_vPreisStrom) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
                 </div>
                 <div class="input-group">
                     <label class="input-label">Gas/Öl Preis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Was zahlst du aktuell?<br><b>Gas:</b> Preis pro kWh<br><b>Öl:</b> Literpreis geteilt durch 10</span>
-                    <input type="number" @bind="Params.PreisAlt" @bind:after="OnParamChanged" step="0.01" class="input-field @(Params.PreisAlt <= 0 ? "!border-red-400" : "")" />
-                    @if (Params.PreisAlt <= 0) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+                    <input type="number" @bind="Params.PreisAlt" @bind:after="OnParamChanged" step="0.01" class="input-field @(_vPreisAlt ? "!border-red-400" : "")" />
+                    @if (_vPreisAlt) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
                 </div>
             </div>
 
@@ -184,21 +184,21 @@ else
                     <div class="input-group">
                         <label class="input-label">Vorlauftemperatur Max <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip tooltip-right">Bei kältester Außentemperatur (NAT).<br><b>FBH:</b> 30-35°C<br><b>HK modern:</b> 45-50°C<br><b>HK alt:</b> 55-65°C</span>
-                        <input type="number" @bind="Params.VorlaufMax" @bind:after="OnParamChanged" class="input-field @(Params.VorlaufMax <= Params.VorlaufMin ? "!border-red-400" : Params.VorlaufMax > 60 ? "!border-orange-400" : "")" />
-                        @if (Params.VorlaufMax <= Params.VorlaufMin) { <span class="text-[10px] text-red-500">Muss &gt; VL Min sein</span> }
-                        else if (Params.VorlaufMax > 60) { <span class="text-[10px] text-orange-500">Sehr hoch – COP wird niedrig</span> }
+                        <input type="number" @bind="Params.VorlaufMax" @bind:after="OnParamChanged" class="input-field @(_vVlMax ? "!border-red-400" : _wVlMax ? "!border-orange-400" : "")" />
+                        @if (_vVlMax) { <span class="text-[10px] text-red-500">Muss &gt; VL Min sein</span> }
+                        else if (_wVlMax) { <span class="text-[10px] text-orange-500">Sehr hoch – COP wird niedrig</span> }
                     </div>
                     <div class="input-group">
                         <label class="input-label">Vorlauftemperatur Min <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Niedrigste VL bei mildem Wetter.<br><b>Typisch:</b> 25-30°C</span>
-                        <input type="number" @bind="Params.VorlaufMin" @bind:after="OnParamChanged" class="input-field @(Params.VorlaufMin >= Params.VorlaufMax ? "!border-red-400" : "")" />
-                        @if (Params.VorlaufMin >= Params.VorlaufMax) { <span class="text-[10px] text-red-500">Muss &lt; VL Max sein</span> }
+                        <input type="number" @bind="Params.VorlaufMin" @bind:after="OnParamChanged" class="input-field @(_vVlMin ? "!border-red-400" : "")" />
+                        @if (_vVlMin) { <span class="text-[10px] text-red-500">Muss &lt; VL Max sein</span> }
                     </div>
                     <div class="input-group col-span-2">
                         <label class="input-label">Warmwasser Temp im Speicher (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip tooltip-left">Zieltemperatur im Speicher.<br><b>Effizient:</b> 45-48°C<br><b>Standard:</b> 50-52°C</span>
-                        <input type="number" @bind="Params.WarmwasserTemp" @bind:after="OnParamChanged" class="input-field @(Params.WarmwasserTemp is < 30 or > 70 ? "!border-orange-400" : "")" />
-                        @if (Params.WarmwasserTemp is < 30 or > 70) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 45–55°C)</span> }
+                        <input type="number" @bind="Params.WarmwasserTemp" @bind:after="OnParamChanged" class="input-field @(_wWwTemp ? "!border-orange-400" : "")" />
+                        @if (_wWwTemp) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 45–55°C)</span> }
                     </div>
                 </div>
             </div>
@@ -209,8 +209,8 @@ else
                 <div class="input-group">
                     <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
-                    <input type="number" @bind="Params.HeizstabMax" @bind:after="OnParamChanged" class="input-field @(Params.HeizstabMax < 0 ? "!border-red-400" : "")" />
-                    @if (Params.HeizstabMax < 0) { <span class="text-[10px] text-red-500">Muss &ge; 0 sein</span> }
+                    <input type="number" @bind="Params.HeizstabMax" @bind:after="OnParamChanged" class="input-field @(_vHeizstab ? "!border-red-400" : "")" />
+                    @if (_vHeizstab) { <span class="text-[10px] text-red-500">Muss &ge; 0 sein</span> }
                 </div>
             </div>
 
@@ -290,8 +290,8 @@ else
                 <div class="input-group">
                     <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
-                    <textarea @bind="Params.RawPMax" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-20 @(Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax).Count < 2 ? "!border-red-400" : "")" rows="3"></textarea>
-                    @if (Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax).Count < 2) { <span class="text-[10px] text-red-500">Mind. 2 Datenpunkte (Temp, kW)</span> }
+                    <textarea @bind="Params.RawPMax" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-20 @(_vPMax ? "!border-red-400" : "")" rows="3"></textarea>
+                    @if (_vPMax) { <span class="text-[10px] text-red-500">Mind. 2 Datenpunkte (Temp, kW)</span> }
                 </div>
                 <div class="input-group">
                     <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
@@ -301,8 +301,8 @@ else
                 <div class="input-group">
                     <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
-                    <textarea @bind="Params.RawCopData" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-32 @(Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2 ? "!border-red-400" : "")" rows="6"></textarea>
-                    @if (Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
+                    <textarea @bind="Params.RawCopData" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-32 @(_vCop ? "!border-red-400" : "")" rows="6"></textarea>
+                    @if (_vCop) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
                 </div>
             </div>
 
@@ -672,10 +672,17 @@ else
     private bool _geoLoading;
     private bool _simulating;
     private bool _shareCopied;
-    private CancellationTokenSource? _debounceCts;
+    private Timer? _debounceTimer;
     private readonly Stack<SimulationParameters> _undoStack = new();
     private readonly Stack<SimulationParameters> _redoStack = new();
+    private SimulationParameters _lastCommittedState = new SimulationParameters().Clone();
+    private SimulationParameters? _burstSnapshot;
     private const int MaxUndoSteps = 50;
+    private bool _hasValidationErrors;
+    private bool _vJahresverbrauch, _vWirkungsgrad, _vWwAnteil, _vHeizgrenze, _vNat;
+    private bool _wRaumSoll, _vPreisStrom, _vPreisAlt, _vVlMax, _wVlMax, _vVlMin;
+    private bool _wWwTemp, _vHeizstab, _vPMax, _vCop;
+    private bool _renderEnabled = true;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
@@ -687,6 +694,8 @@ else
         ["monthly"] = "4. Monatsbilanz",
         ["check"] = "5. Kennlinien Check",
     };
+
+    protected override bool ShouldRender() => _renderEnabled;
 
     protected override void OnInitialized()
     {
@@ -701,6 +710,8 @@ else
             await LoadCustomPresets();
             await RestoreState();
             ApplySharedConfig();
+            _lastCommittedState = Params.Clone();
+            UpdateValidationCache();
             if (!string.IsNullOrEmpty(_selectedCity))
             {
                 await LoadWeather();
@@ -873,13 +884,14 @@ else
 
     private void ResetToDefaults()
     {
-        PushUndo();
+        CommitUndoEntry(_lastCommittedState);
         Params = new SimulationParameters();
+        _lastCommittedState = Params.Clone();
         _selectedPreset = "custom";
-        OnParamChangedNoUndo();
+        ScheduleDebounce();
     }
 
-    private void PushUndo()
+    private void CommitUndoEntry(SimulationParameters snapshot)
     {
         if (_undoStack.Count >= MaxUndoSteps)
         {
@@ -888,48 +900,58 @@ else
             for (int i = Math.Min(items.Length - 1, MaxUndoSteps - 2); i >= 0; i--)
                 _undoStack.Push(items[i]);
         }
-        _undoStack.Push(Params.Clone());
+        _undoStack.Push(snapshot);
         _redoStack.Clear();
     }
 
     private void Undo()
     {
         if (_undoStack.Count == 0) return;
+        _burstSnapshot = null;
         _redoStack.Push(Params.Clone());
         Params = _undoStack.Pop();
+        _lastCommittedState = Params.Clone();
         _selectedPreset = "custom";
-        OnParamChangedNoUndo();
+        ScheduleDebounce();
     }
 
     private void Redo()
     {
         if (_redoStack.Count == 0) return;
+        _burstSnapshot = null;
         _undoStack.Push(Params.Clone());
         Params = _redoStack.Pop();
+        _lastCommittedState = Params.Clone();
         _selectedPreset = "custom";
-        OnParamChangedNoUndo();
+        ScheduleDebounce();
     }
 
     private void OnParamChanged()
     {
-        PushUndo();
-        OnParamChangedNoUndo();
+        _burstSnapshot ??= _lastCommittedState;
+        _renderEnabled = false;
+        ScheduleDebounce();
     }
 
-    private void OnParamChangedNoUndo()
+    private void ScheduleDebounce()
     {
-        _debounceCts?.Cancel();
-        _debounceCts = new CancellationTokenSource();
-        var token = _debounceCts.Token;
-        _ = Task.Run(async () =>
+        _debounceTimer?.Dispose();
+        _debounceTimer = new Timer(_ =>
         {
-            try
+            InvokeAsync(() =>
             {
-                await Task.Delay(600, token);
-                await InvokeAsync(() => { if (_weatherData.Count > 0) RunSimulation(); });
-            }
-            catch (TaskCanceledException) { }
-        });
+                _renderEnabled = true;
+                UpdateValidationCache();
+                if (_burstSnapshot != null)
+                {
+                    CommitUndoEntry(_burstSnapshot);
+                    _burstSnapshot = null;
+                    _lastCommittedState = Params.Clone();
+                }
+                if (_weatherData.Count > 0) RunSimulation();
+                else StateHasChanged();
+            });
+        }, null, 600, Timeout.Infinite);
     }
 
     private const string CustomPresetsKey = "wp-custom-presets";
@@ -1091,21 +1113,33 @@ else
         await JS.InvokeVoidAsync("window.print");
     }
 
-    private bool HasValidationErrors() =>
-        Params.Jahresverbrauch <= 0 ||
-        Params.Wirkungsgrad is <= 0 or > 1.0 ||
-        Params.WarmwasserAnteil is < 0 or > 100 ||
-        Params.Heizgrenze <= Params.NormAussentemperatur ||
-        Params.VorlaufMax <= Params.VorlaufMin ||
-        Params.PreisStrom <= 0 ||
-        Params.PreisAlt <= 0 ||
-        Params.HeizstabMax < 0 ||
-        Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax).Count < 2 ||
-        Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2;
+    private bool HasValidationErrors() => _hasValidationErrors;
+
+    private void UpdateValidationCache()
+    {
+        _vJahresverbrauch = Params.Jahresverbrauch <= 0;
+        _vWirkungsgrad = Params.Wirkungsgrad is <= 0 or > 1.0;
+        _vWwAnteil = Params.WarmwasserAnteil is < 0 or > 100;
+        _vHeizgrenze = Params.Heizgrenze <= Params.NormAussentemperatur;
+        _vNat = Params.NormAussentemperatur >= Params.Heizgrenze;
+        _wRaumSoll = Params.RaumSollTemperatur is < 15 or > 30;
+        _vPreisStrom = Params.PreisStrom <= 0;
+        _vPreisAlt = Params.PreisAlt <= 0;
+        _vVlMax = Params.VorlaufMax <= Params.VorlaufMin;
+        _wVlMax = !_vVlMax && Params.VorlaufMax > 60;
+        _vVlMin = Params.VorlaufMin >= Params.VorlaufMax;
+        _wWwTemp = Params.WarmwasserTemp is < 30 or > 70;
+        _vHeizstab = Params.HeizstabMax < 0;
+        _vPMax = Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax).Count < 2;
+        _vCop = Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2;
+        _hasValidationErrors = _vJahresverbrauch || _vWirkungsgrad || _vWwAnteil || _vHeizgrenze ||
+            _vVlMax || _vPreisStrom || _vPreisAlt || _vHeizstab || _vPMax || _vCop;
+    }
 
     private async void RunSimulation()
     {
-        if (_weatherData.Count == 0 || HasValidationErrors()) return;
+        UpdateValidationCache();
+        if (_weatherData.Count == 0 || _hasValidationErrors) return;
         _resultCache.Clear();
         _simulating = true;
         StateHasChanged();
