@@ -305,6 +305,18 @@ else
                     @if (Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
                 </div>
             </div>
+
+            <div class="flex gap-2">
+                <button @onclick="Undo" disabled="@(_undoStack.Count == 0)" class="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:pointer-events-none text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1" title="Rückgängig">
+                    <i class="fas fa-rotate-left"></i> Undo (@_undoStack.Count)
+                </button>
+                <button @onclick="Redo" disabled="@(_redoStack.Count == 0)" class="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:pointer-events-none text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1" title="Wiederherstellen">
+                    <i class="fas fa-rotate-right"></i> Redo (@_redoStack.Count)
+                </button>
+            </div>
+            <button @onclick="ResetToDefaults" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1">
+                <i class="fas fa-arrow-rotate-left"></i> Standardwerte
+            </button>
         </aside>
 
         <!-- Main Content -->
@@ -643,6 +655,9 @@ else
     private bool _simulating;
     private bool _shareCopied;
     private CancellationTokenSource? _debounceCts;
+    private readonly Stack<SimulationParameters> _undoStack = new();
+    private readonly Stack<SimulationParameters> _redoStack = new();
+    private const int MaxUndoSteps = 50;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
@@ -838,7 +853,52 @@ else
 
     private void ResetPreset() => _selectedPreset = "custom";
 
+    private void ResetToDefaults()
+    {
+        PushUndo();
+        Params = new SimulationParameters();
+        _selectedPreset = "custom";
+        OnParamChangedNoUndo();
+    }
+
+    private void PushUndo()
+    {
+        if (_undoStack.Count >= MaxUndoSteps)
+        {
+            var items = _undoStack.ToArray();
+            _undoStack.Clear();
+            for (int i = Math.Min(items.Length - 1, MaxUndoSteps - 2); i >= 0; i--)
+                _undoStack.Push(items[i]);
+        }
+        _undoStack.Push(Params.Clone());
+        _redoStack.Clear();
+    }
+
+    private void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+        _redoStack.Push(Params.Clone());
+        Params = _undoStack.Pop();
+        _selectedPreset = "custom";
+        OnParamChangedNoUndo();
+    }
+
+    private void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+        _undoStack.Push(Params.Clone());
+        Params = _redoStack.Pop();
+        _selectedPreset = "custom";
+        OnParamChangedNoUndo();
+    }
+
     private void OnParamChanged()
+    {
+        PushUndo();
+        OnParamChangedNoUndo();
+    }
+
+    private void OnParamChangedNoUndo()
     {
         _debounceCts?.Cancel();
         _debounceCts = new CancellationTokenSource();
