@@ -256,7 +256,10 @@ else
                     </button>
                     @if (_selectedPreset.StartsWith("user_"))
                     {
-                        <button @onclick="DeleteCustomPreset" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded border border-red-200 flex items-center justify-center gap-1">
+                        <button @onclick="RenameCustomPreset" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1" title="Umbenennen">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button @onclick="DeleteCustomPreset" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded border border-red-200 flex items-center justify-center gap-1" title="Löschen">
                             <i class="fas fa-trash"></i>
                         </button>
                     }
@@ -830,6 +833,16 @@ else
         };
         _customPresets.Add(preset);
         _selectedPreset = key;
+        await PersistCustomPresets();
+    }
+
+    private async Task RenameCustomPreset()
+    {
+        var preset = _customPresets.Find(p => p.Key == _selectedPreset);
+        if (preset == null) return;
+        var name = await JS.InvokeAsync<string?>("prompt", "Neuer Name:", preset.Name);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        preset.Name = name.Trim();
         await PersistCustomPresets();
     }
 
