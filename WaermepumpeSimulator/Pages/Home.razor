@@ -124,32 +124,32 @@ else
                     <div class="input-group">
                         <label class="input-label">Wärmeverbrauch (Warmwasser + Raum) (kWh/a) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Der bisherige Jahresverbrauch deiner Öl- oder Gasheizung in kWh. (1 Liter Öl ≈ 10 kWh, 1 m³ Gas ≈ 10 kWh)</span>
-                        <input type="number" @bind="Params.Jahresverbrauch" class="input-field" />
+                        <input type="number" @bind="Params.Jahresverbrauch" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">Wirkungsgrad alte Heizung (0.8-1.0) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Jahresnutzungsgrad der alten Öl- oder Gasheizung.<br>Standardkessel: ca. 0.8<br>Brennwert/Neu: ca. 0.95</span>
-                        <input type="number" @bind="Params.Wirkungsgrad" step="0.01" class="input-field" />
+                        <input type="number" @bind="Params.Wirkungsgrad" @bind:after="OnParamChanged" step="0.01" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">WW Anteil des Wärmeverbrauchs (%) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Wieviel eures Wärmeverbrauchs geht ins Warmwasser?<br>Typisch: 15-20% für 4 Personen.</span>
-                        <input type="number" @bind="Params.WarmwasserAnteil" class="input-field" />
+                        <input type="number" @bind="Params.WarmwasserAnteil" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">Heizgrenze (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Ab welcher Außentemperatur heizt ihr? (Altbau: 15°C, Neubau: 10-12°C, Durchheizen: 22°)</span>
-                        <input type="number" @bind="Params.Heizgrenze" class="input-field" />
+                        <input type="number" @bind="Params.Heizgrenze" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">NAT (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Norm-Außentemperatur für deinen Standort.<br><a href="https://www.waermepumpe.de/werkzeuge/klimakarte/" target="_blank">Hier Klimakarte öffnen</a></span>
-                        <input type="number" @bind="Params.NormAussentemperatur" class="input-field" />
+                        <input type="number" @bind="Params.NormAussentemperatur" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">Raum Soll (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Deine typische, gewünschte Raumtemperatur (z.B. 21°C oder 22°C).</span>
-                        <input type="number" @bind="Params.RaumSollTemperatur" class="input-field" />
+                        <input type="number" @bind="Params.RaumSollTemperatur" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                 </div>
             </div>
@@ -160,12 +160,12 @@ else
                 <div class="input-group">
                     <label class="input-label">Strompreis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Dein erwarteter Strompreis für die WP (oft gibt es spezielle WP-Tarife, ca. 20-30 ct).</span>
-                    <input type="number" @bind="Params.PreisStrom" step="0.01" class="input-field" />
+                    <input type="number" @bind="Params.PreisStrom" @bind:after="OnParamChanged" step="0.01" class="input-field" />
                 </div>
                 <div class="input-group">
                     <label class="input-label">Gas/Öl Preis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Was zahlst du aktuell?<br><b>Gas:</b> Preis pro kWh<br><b>Öl:</b> Literpreis geteilt durch 10</span>
-                    <input type="number" @bind="Params.PreisAlt" step="0.01" class="input-field" />
+                    <input type="number" @bind="Params.PreisAlt" @bind:after="OnParamChanged" step="0.01" class="input-field" />
                 </div>
             </div>
 
@@ -176,17 +176,17 @@ else
                     <div class="input-group">
                         <label class="input-label">Vorlauftemperatur Max <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip tooltip-right">Bei kältester Außentemperatur (NAT).<br><b>FBH:</b> 30-35°C<br><b>HK modern:</b> 45-50°C<br><b>HK alt:</b> 55-65°C</span>
-                        <input type="number" @bind="Params.VorlaufMax" class="input-field" />
+                        <input type="number" @bind="Params.VorlaufMax" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">Vorlauftemperatur Min <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip">Niedrigste VL bei mildem Wetter.<br><b>Typisch:</b> 25-30°C</span>
-                        <input type="number" @bind="Params.VorlaufMin" class="input-field" />
+                        <input type="number" @bind="Params.VorlaufMin" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group col-span-2">
                         <label class="input-label">Warmwasser Temp im Speicher (°C) <i class="fas fa-circle-question help-icon"></i></label>
                         <span class="tooltip tooltip-left">Zieltemperatur im Speicher.<br><b>Effizient:</b> 45-48°C<br><b>Standard:</b> 50-52°C</span>
-                        <input type="number" @bind="Params.WarmwasserTemp" class="input-field" />
+                        <input type="number" @bind="Params.WarmwasserTemp" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                 </div>
             </div>
@@ -197,7 +197,7 @@ else
                 <div class="input-group">
                     <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
-                    <input type="number" @bind="Params.HeizstabMax" class="input-field" />
+                    <input type="number" @bind="Params.HeizstabMax" @bind:after="OnParamChanged" class="input-field" />
                 </div>
             </div>
 
@@ -205,20 +205,20 @@ else
             <div class="mb-6 p-3 bg-gray-50 rounded border border-gray-200">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-bold text-gray-700 text-sm">Nachtabsenkung</h3>
-                    <input type="checkbox" @bind="Params.NachtabsenkungAktiv" />
+                    <input type="checkbox" @bind="Params.NachtabsenkungAktiv" @bind:after="OnParamChanged" />
                 </div>
                 <div class="grid grid-cols-2 gap-2 @(Params.NachtabsenkungAktiv ? "" : "opacity-50 pointer-events-none") transition-opacity">
                     <div class="input-group">
                         <label class="input-label">Start (h)</label>
-                        <input type="number" @bind="Params.NachtStart" class="input-field" />
+                        <input type="number" @bind="Params.NachtStart" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group">
                         <label class="input-label">Ende (h)</label>
-                        <input type="number" @bind="Params.NachtEnde" class="input-field" />
+                        <input type="number" @bind="Params.NachtEnde" @bind:after="OnParamChanged" class="input-field" />
                     </div>
                     <div class="input-group col-span-2">
                         <label class="input-label">Absenkung Delta (K)</label>
-                        <input type="number" @bind="Params.NachtDeltaT" step="0.5" class="input-field" />
+                        <input type="number" @bind="Params.NachtDeltaT" @bind:after="OnParamChanged" step="0.5" class="input-field" />
                     </div>
                 </div>
             </div>
@@ -277,17 +277,17 @@ else
                 <div class="input-group">
                     <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
-                    <textarea @bind="Params.RawPMax" @oninput="ResetPreset" class="input-field h-20" rows="3"></textarea>
+                    <textarea @bind="Params.RawPMax" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-20" rows="3"></textarea>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Unterste Modulationsgrenze. Leer = Auto (25% von Max).</span>
-                    <textarea @bind="Params.RawPMin" @oninput="ResetPreset" class="input-field h-20" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
+                    <textarea @bind="Params.RawPMin" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-20" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
                 </div>
                 <div class="input-group">
                     <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
                     <span class="tooltip">Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
-                    <textarea @bind="Params.RawCopData" @oninput="ResetPreset" class="input-field h-32" rows="6"></textarea>
+                    <textarea @bind="Params.RawCopData" @bind:after="OnParamChanged" @oninput="ResetPreset" class="input-field h-32" rows="6"></textarea>
                 </div>
             </div>
         </aside>
@@ -579,7 +579,7 @@ else
                 <div class="flex items-center justify-center h-64">
                     <div class="text-center text-gray-400">
                         <i class="fas fa-calculator text-4xl mb-3"></i>
-                        <p>Drücke <b>BERECHNEN</b> um die Simulation zu starten.</p>
+                        <p>Wähle einen <b>Standort</b> um die Simulation zu starten.</p>
                     </div>
                 </div>
             }
@@ -620,6 +620,7 @@ else
     private bool _geoLoading;
     private bool _simulating;
     private bool _shareCopied;
+    private CancellationTokenSource? _debounceCts;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
 
@@ -810,9 +811,26 @@ else
         Params.RawPMax = preset.PMax;
         Params.RawPMin = preset.PMin ?? "";
         Params.RawCopData = preset.CopData;
+        OnParamChanged();
     }
 
     private void ResetPreset() => _selectedPreset = "custom";
+
+    private void OnParamChanged()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(600, token);
+                await InvokeAsync(() => { if (_weatherData.Count > 0) RunSimulation(); });
+            }
+            catch (TaskCanceledException) { }
+        });
+    }
 
     private const string CustomPresetsKey = "wp-custom-presets";
 
