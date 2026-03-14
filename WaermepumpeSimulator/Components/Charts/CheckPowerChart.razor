@@ -33,10 +33,12 @@
     private List<XYPoint> _p55 = [];
     private List<XYPoint> _pMin = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
         var r = Result;
 
         _p35 = []; _p55 = []; _pMin = [];

@@ -40,10 +40,12 @@
     private List<XYPoint> _pts35 = [];
     private List<XYPoint> _pts55 = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
         var r = Result;
 
         _eta35 = []; _eta55 = [];

@@ -36,10 +36,12 @@
     private List<XYPoint> _minData = [];
     private List<XYPoint> _taktData = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
         var r = Result;
         var rollL = RollingAvg(r.Load, 24);
         var rollMin = RollingAvg(r.MinPowerAvailable, 24);

@@ -36,10 +36,12 @@
     private List<ScatterPoint> _minLine = [];
     private List<(string Name, List<ScatterPoint> Points)> _groups = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
         var r = Result;
 
         // Group scatter points by COP range (simulates colorscale)

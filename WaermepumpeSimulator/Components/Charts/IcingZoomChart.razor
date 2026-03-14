@@ -26,10 +26,12 @@
     private List<XYPoint> _tempData = [];
     private List<XYPoint> _dewData = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
 
         _tempData = [];
         _dewData = [];

@@ -25,10 +25,12 @@
     private ApexChartOptions<MonthlyChartPoint> _options = new();
     private List<MonthlyChartPoint> _data = [];
     private bool _dataChanged;
+    private List<MonthlyAggregate>? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Monthly == null) return;
+        if (Monthly == null || Monthly == _prev) return;
+        _prev = Monthly;
 
         _data = Monthly.Select(m => new MonthlyChartPoint
         {

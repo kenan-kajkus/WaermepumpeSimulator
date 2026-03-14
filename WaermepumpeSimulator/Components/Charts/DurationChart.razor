@@ -31,10 +31,12 @@
     private ApexChartOptions<DurationPoint> _options = new();
     private List<DurationPoint> _data = [];
     private bool _dataChanged;
+    private SimulationResult? _prev;
 
     protected override void OnParametersSet()
     {
-        if (Result == null) return;
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
         var r = Result;
 
         var sorted = Enumerable.Range(0, 8760)
