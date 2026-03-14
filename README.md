@@ -1,5 +1,7 @@
 # WP Simulator – Wärmepumpen Jahressimulation & JAZ Rechner
 
+**Live Demo: [wp.kajkus.eu](https://wp.kajkus.eu/)**
+
 Blazor WebAssembly App zur stündlichen Jahressimulation von Luft-Wasser-Wärmepumpen. Berechnet die Jahresarbeitszahl (JAZ), Taktung, Vereisungsstunden, Heizstabanteil und Betriebskosten auf Basis realer Wetterdaten.
 
 Fork des [Akkudoktor Wärmepumpen-Rechners](https://akkudoktor.net/pub/waermepumpen-rechner), neu implementiert als Blazor WebAssembly App mit erweiterten Features (eigene Presets, Vergleichsmodus, Mehrjahres-Analyse, Konfigurations-Sharing).
