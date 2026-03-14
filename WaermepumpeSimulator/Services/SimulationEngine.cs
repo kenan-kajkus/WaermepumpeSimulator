@@ -6,9 +6,36 @@ namespace WaermepumpeSimulator.Services;
 public class SimulationEngine
 {
     private const int HoursPerYear = 8760;
-    private const double VorlaufLow = 35.0;
-    private const double VorlaufHigh = 55.0;
-    private const double P55ScalingFactor = 0.92;
+
+    // --- Kennfeld interpolation ---
+    private const double VorlaufLow = 35.0;                // Lower reference flow temperature for COP/power blending (°C)
+    private const double VorlaufHigh = 55.0;               // Upper reference flow temperature for COP/power blending (°C)
+    private const double P55ScalingFactor = 0.92;           // Power derating at VL55 vs VL35 (typical ~8% loss)
+    private const double DefaultPMinFraction = 0.25;        // PMin as fraction of PMax when no PMin data provided
+    private const double SourceTempClamp = 15.0;            // Clamp source temp for COP curve to avoid extrapolation (°C)
+    private const double EtaMatchRadius = 5.0;              // Max VL deviation to match COP data points to reference VL (K)
+
+    // --- Temperature smoothing ---
+    private const double SmoothingRetain = 0.96;            // Weight of previous smoothed temp (low-pass filter)
+    private const double SmoothingNew = 0.04;               // Weight of current hour temp (= 1 - SmoothingRetain)
+    private const double InitialSmoothedTemp = 5.0;         // Starting value for smoothed outside temperature (°C)
+
+    // --- Icing model thresholds ---
+    private const double IcingEvapTempThreshold = -0.5;     // Evaporator temp must be below this for icing (°C)
+    private const double IcingHumidityThreshold = 88.0;     // Min relative humidity for icing risk (%)
+    private const double IcingOutsideTempMin = -4.0;        // Outside temp lower bound for icing range (°C)
+    private const double IcingOutsideTempMax = 3.0;         // Outside temp upper bound for icing range (°C)
+    private const double IcingEvapBaseOffset = 0.5;         // Base evaporator-to-ambient offset (K)
+    private const double IcingEvapLoadFactor = 3.0;         // Additional offset per unit load factor (K)
+    private const double IcingCopPenalty = 0.15;            // Max COP reduction at full load during icing (15%)
+    private const double IcingLoadThreshold = 1.2;          // Icing only checked when load > PMin × this factor
+
+    // --- Night setback ---
+    private const double NightSetbackVorlaufFactor = 1.5;   // Vorlauf reduction multiplier during night setback
+
+    // --- Thresholds ---
+    private const double MinHeatingLoad = 0.1;              // Minimum load to count as "heating active" (kW)
+    private const double MinPowerBalance = 0.001;           // Below this load, power balance is zero (kW)
 
     public SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
@@ -80,7 +107,7 @@ public class SimulationEngine
             ? lookupTemps.Select(temp => MathHelpers.Interp(temp,
                 rawPowerMin.Select(point => point[0]).ToArray(),
                 rawPowerMin.Select(point => point[1]).ToArray())).ToArray()
-            : pMax35.Select(value => value * 0.25).ToArray();
+            : pMax35.Select(value => value * DefaultPMinFraction).ToArray();
         var pMin55 = pMin35.Select(value => value * P55ScalingFactor).ToArray();
 
         var etaPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow);
@@ -98,7 +125,7 @@ public class SimulationEngine
     private static List<double[]> ExtractEtaPoints(List<double[]> copData, double targetVorlauf)
     {
         return copData
-            .Where(point => Math.Abs(point[0] - targetVorlauf) < 5)
+            .Where(point => Math.Abs(point[0] - targetVorlauf) < EtaMatchRadius)
             .Select(point => new[] { point[1], point[2] / MathHelpers.GetCarnotCop(point[1], point[0]) })
             .OrderBy(point => point[0])
             .ToList();
@@ -143,7 +170,7 @@ public class SimulationEngine
         double[] lookupTemps, KennfeldCurves kennfeld, LoadProfile load, SimulationResult result)
     {
         int icingHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
-        double smoothedOutsideTemp = 5.0;
+        double smoothedOutsideTemp = InitialSmoothedTemp;
 
         for (int hour = 0; hour < HoursPerYear; hour++)
         {
@@ -152,7 +179,7 @@ public class SimulationEngine
             double humidity = weatherPoint.RelativeHumidity;
             double dewPoint = MathHelpers.CalculateDewPoint(outsideTemp, humidity);
             int hourOfDay = hour % 24;
-            smoothedOutsideTemp = smoothedOutsideTemp * 0.96 + outsideTemp * 0.04;
+            smoothedOutsideTemp = smoothedOutsideTemp * SmoothingRetain + outsideTemp * SmoothingNew;
 
             // Heating load & vorlauf for this hour
             var (heatingLoad, vorlauf) = CalcHourlyLoad(parameters, outsideTemp, smoothedOutsideTemp, hourOfDay, load);
@@ -168,7 +195,7 @@ public class SimulationEngine
             if (isIcing) icingHoursTotal++;
 
             // Cycling detection
-            bool isHeating = heatingLoad > 0.1;
+            bool isHeating = heatingLoad > MinHeatingLoad;
             bool isCycling = isHeating && totalLoad < minPowerAvail;
             if (isHeating) heatingHoursTotal++;
             if (isCycling) cyclingHoursTotal++;
@@ -214,7 +241,7 @@ public class SimulationEngine
             double roomReduction = Math.Max(0.0, (parameters.RaumSollTemperatur - parameters.NachtDeltaT) - outsideTemp)
                                    / Math.Max(0.1, parameters.RaumSollTemperatur - outsideTemp);
             heatingLoad *= roomReduction;
-            vorlauf -= heatingCurveSlope * parameters.NachtDeltaT * 1.5;
+            vorlauf -= heatingCurveSlope * parameters.NachtDeltaT * NightSetbackVorlaufFactor;
         }
 
         vorlauf = Math.Clamp(vorlauf, parameters.VorlaufMin, parameters.VorlaufMax);
@@ -225,25 +252,25 @@ public class SimulationEngine
         double outsideTemp, double humidity, double dewPoint,
         double totalLoad, double minPowerAvail, double maxPowerAvail)
     {
-        if (totalLoad <= minPowerAvail * 1.2)
+        if (totalLoad <= minPowerAvail * IcingLoadThreshold)
             return (false, 1.0);
 
         double loadFactor = maxPowerAvail > 0 ? Math.Min(1.0, totalLoad / maxPowerAvail) : 1.0;
-        double evaporatorTemp = outsideTemp - (0.5 + 3.0 * loadFactor);
+        double evaporatorTemp = outsideTemp - (IcingEvapBaseOffset + IcingEvapLoadFactor * loadFactor);
 
-        bool isIcing = evaporatorTemp < -0.5
+        bool isIcing = evaporatorTemp < IcingEvapTempThreshold
                        && evaporatorTemp < dewPoint
-                       && humidity > 88
-                       && outsideTemp is >= -4 and <= 3;
+                       && humidity > IcingHumidityThreshold
+                       && outsideTemp >= IcingOutsideTempMin && outsideTemp <= IcingOutsideTempMax;
 
-        double penalty = isIcing ? 1.0 - 0.15 * loadFactor : 1.0;
+        double penalty = isIcing ? 1.0 - IcingCopPenalty * loadFactor : 1.0;
         return (isIcing, penalty);
     }
 
     private static (double thermal, double electrical, double heizstab, double deficit) CalcPowerBalance(
         double totalLoad, double maxPowerAvail, double cop, double heizstabMax)
     {
-        if (totalLoad <= 0.001)
+        if (totalLoad <= MinPowerBalance)
             return (0, 0, 0, 0);
 
         if (maxPowerAvail >= totalLoad)
@@ -323,7 +350,7 @@ public class SimulationEngine
         for (int i = 0; i < lookupTemps.Length; i++)
         {
             double sourceTemp = lookupTemps[i];
-            double sourceTempClamped = Math.Min(sourceTemp, 15.0);
+            double sourceTempClamped = Math.Min(sourceTemp, SourceTempClamp);
             double rawEta = MathHelpers.GetFlatEta(sourceTempClamped, etaPoints);
             cop[i] = Math.Clamp(rawEta * MathHelpers.GetCarnotCop(sourceTempClamped, flowTemp), 1.0, maxCop);
             eta[i] = cop[i] / MathHelpers.GetCarnotCop(sourceTemp, flowTemp);
