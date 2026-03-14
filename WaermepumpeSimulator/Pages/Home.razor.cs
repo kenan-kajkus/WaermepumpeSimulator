@@ -46,6 +46,8 @@ public partial class Home
     private bool _simulating;
     private bool _shareCopied;
     private Timer? _debounceTimer;
+    private Timer? _renderTimer;
+    private CancellationTokenSource? _precalcCts;
     private readonly Stack<SimulationParameters> _undoStack = new();
     private readonly Stack<SimulationParameters> _redoStack = new();
     private SimulationParameters _lastCommittedState = new SimulationParameters().Clone();
@@ -327,7 +329,22 @@ public partial class Home
     {
         _burstSnapshot ??= _lastCommittedState;
         _renderEnabled = false;
+        ScheduleRenderUpdate();
         ScheduleDebounce();
+    }
+
+    private void ScheduleRenderUpdate()
+    {
+        _renderTimer?.Dispose();
+        _renderTimer = new Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                _renderEnabled = true;
+                UpdateValidationCache();
+                StateHasChanged();
+            });
+        }, null, 150, Timeout.Infinite);
     }
 
     private void ScheduleDebounce()
@@ -338,6 +355,7 @@ public partial class Home
             InvokeAsync(async () =>
             {
                 _renderEnabled = true;
+                _renderTimer?.Dispose();
                 UpdateValidationCache();
                 if (_burstSnapshot != null)
                 {
@@ -554,6 +572,7 @@ public partial class Home
     {
         UpdateValidationCache();
         if (_weatherData.Count == 0 || _hasValidationErrors) return;
+        _precalcCts?.Cancel();
         try
         {
             _resultCache.Clear();
@@ -581,6 +600,9 @@ public partial class Home
 
     private async Task PrecalculateOtherYears()
     {
+        _precalcCts = new CancellationTokenSource();
+        var ct = _precalcCts.Token;
+
         var keys = new List<string>();
         foreach (var y in _availableYears)
             keys.Add(y.ToString());
@@ -589,13 +611,18 @@ public partial class Home
 
         foreach (var key in keys)
         {
+            if (ct.IsCancellationRequested) return;
             if (_resultCache.ContainsKey(key)) continue;
             var weatherData = WeatherDataService.FilterByYear(_allWeatherData, key);
             if (weatherData.Count == 0) continue;
-            await Task.Yield();
+            // Task.Delay(1) uses setTimeout — yields to browser's macrotask queue
+            // so it can paint and process input between each year's simulation
+            await Task.Delay(1);
+            if (ct.IsCancellationRequested) return;
             var result = Engine.Run(Params, weatherData);
             var eval = EvaluationService.Evaluate(result);
             var monthly = EvaluationService.CalcMonthly(result, Params.PreisStrom);
+            if (ct.IsCancellationRequested) return;
             _resultCache[key] = (result, eval, monthly);
         }
     }
