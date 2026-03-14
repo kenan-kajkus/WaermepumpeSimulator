@@ -107,21 +107,32 @@ public static class SimulationEngine
         double[] powerMaxTemps = rawPowerMax.Select(point => point[0]).ToArray();
         double[] powerMaxValues = rawPowerMax.Select(point => point[1]).ToArray();
 
-        var pMax35 = lookupTemps.Select(temp => MathHelpers.Interp(temp, powerMaxTemps, powerMaxValues)).ToArray();
-        var pMax55 = pMax35.Select(value => value * P55ScalingFactor).ToArray();
+        int n = lookupTemps.Length;
+        var pMax35 = new double[n];
+        var pMax55 = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            pMax35[i] = MathHelpers.Interp(lookupTemps[i], powerMaxTemps, powerMaxValues);
+            pMax55[i] = pMax35[i] * P55ScalingFactor;
+        }
 
-        double[] pMin35;
+        var pMin35 = new double[n];
         if (rawPowerMin.Count > 0)
         {
             double[] pMinTemps = rawPowerMin.Select(point => point[0]).ToArray();
             double[] pMinValues = rawPowerMin.Select(point => point[1]).ToArray();
-            pMin35 = lookupTemps.Select(temp => MathHelpers.Interp(temp, pMinTemps, pMinValues)).ToArray();
+            for (int i = 0; i < n; i++)
+                pMin35[i] = MathHelpers.Interp(lookupTemps[i], pMinTemps, pMinValues);
         }
         else
         {
-            pMin35 = pMax35.Select(value => value * DefaultPMinFraction).ToArray();
+            for (int i = 0; i < n; i++)
+                pMin35[i] = pMax35[i] * DefaultPMinFraction;
         }
-        var pMin55 = pMin35.Select(value => value * P55ScalingFactor).ToArray();
+
+        var pMin55 = new double[n];
+        for (int i = 0; i < n; i++)
+            pMin55[i] = pMin35[i] * P55ScalingFactor;
 
         var etaPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow);
         var etaPoints55 = ExtractEtaPoints(rawCopData, VorlaufHigh);
