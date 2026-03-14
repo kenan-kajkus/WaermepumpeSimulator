@@ -97,7 +97,7 @@ public partial class Home
             if (!string.IsNullOrEmpty(_selectedCity))
             {
                 await LoadWeather();
-                RunSimulation();
+                await RunSimulation();
             }
             _initializing = false;
             StateHasChanged();
@@ -163,7 +163,7 @@ public partial class Home
         _selectedCity = city;
         if (string.IsNullOrEmpty(_selectedCity)) return;
         await LoadWeather();
-        RunSimulation();
+        await RunSimulation();
     }
 
     private async Task UseMyLocation()
@@ -205,7 +205,7 @@ public partial class Home
             ApplyWeatherData(data, years, cityName);
             _statusClass = "text-green-600";
 
-            RunSimulation();
+            await RunSimulation();
         }
         catch (Exception ex)
         {
@@ -219,13 +219,13 @@ public partial class Home
         }
     }
 
-    private void HandleYearSelected(string year)
+    private async Task HandleYearSelected(string year)
     {
         _selectedYear = year;
-        OnYearChanged();
+        await OnYearChanged();
     }
 
-    private void OnYearChanged()
+    private async Task OnYearChanged()
     {
         _weatherData = WeatherDataService.FilterByYear(_allWeatherData, _selectedYear);
         _statusSub = _selectedYear == "all"
@@ -240,7 +240,7 @@ public partial class Home
         }
         else
         {
-            RunSimulation();
+            await RunSimulation();
         }
     }
 
@@ -253,7 +253,7 @@ public partial class Home
         {
             ApplyWeatherData(data, years, "Upload");
             _statusSub = $"{data.Count} Datenpunkte";
-            RunSimulation();
+            await RunSimulation();
         }
     }
 
@@ -333,7 +333,7 @@ public partial class Home
         _debounceTimer?.Dispose();
         _debounceTimer = new Timer(_ =>
         {
-            InvokeAsync(() =>
+            InvokeAsync(async () =>
             {
                 _renderEnabled = true;
                 UpdateValidationCache();
@@ -343,7 +343,7 @@ public partial class Home
                     _burstSnapshot = null;
                     _lastCommittedState = Params.Clone();
                 }
-                if (_weatherData.Count > 0) RunSimulation();
+                if (_weatherData.Count > 0) await RunSimulation();
                 else StateHasChanged();
             });
         }, null, 600, Timeout.Infinite);
@@ -531,22 +531,33 @@ public partial class Home
             _vVlMax || _vPreisStrom || _vPreisAlt || _vHeizstab || _vPMax || _vCop;
     }
 
-    private async void RunSimulation()
+    private async Task RunSimulation()
     {
         UpdateValidationCache();
         if (_weatherData.Count == 0 || _hasValidationErrors) return;
-        _resultCache.Clear();
-        _simulating = true;
-        StateHasChanged();
-        await Task.Yield();
-        _result = Engine.Run(Params, _weatherData);
-        _eval = EvaluationService.Evaluate(_result);
-        _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
-        _resultCache[_selectedYear] = (_result, _eval, _monthly);
-        _simulating = false;
-        StateHasChanged();
-        await SaveState();
-        await PrecalculateOtherYears();
+        try
+        {
+            _resultCache.Clear();
+            _simulating = true;
+            StateHasChanged();
+            await Task.Yield();
+            _result = Engine.Run(Params, _weatherData);
+            _eval = EvaluationService.Evaluate(_result);
+            _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
+            _resultCache[_selectedYear] = (_result, _eval, _monthly);
+            _simulating = false;
+            StateHasChanged();
+            await SaveState();
+            await PrecalculateOtherYears();
+        }
+        catch (Exception ex)
+        {
+            _simulating = false;
+            _statusText = "Fehler";
+            _statusSub = ex.Message.Length > 40 ? ex.Message[..40] + "…" : ex.Message;
+            _statusClass = "text-red-600";
+            StateHasChanged();
+        }
     }
 
     private async Task PrecalculateOtherYears()
