@@ -12,7 +12,7 @@ public static class SimulationEngine
     private const double VorlaufHigh = 55.0;               // Upper reference flow temperature for COP/power blending (°C)
     private const double P55ScalingFactor = 0.92;           // Power derating at VL55 vs VL35 (typical ~8% loss)
     private const double DefaultPMinFraction = 0.25;        // PMin as fraction of PMax when no PMin data provided
-    private const double SourceTempClamp = 15.0;            // Clamp source temp for COP curve to avoid extrapolation (°C)
+    private const double DefaultSourceTempClamp = 15.0;      // Fallback clamp when no COP data provides a max source temp (°C)
     private const double EtaMatchRadius = 5.0;              // Max VL deviation to match COP data points to reference VL (K)
 
     // --- Temperature smoothing ---
@@ -137,8 +137,13 @@ public static class SimulationEngine
         var etaPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow);
         var etaPoints55 = ExtractEtaPoints(rawCopData, VorlaufHigh);
 
-        var (cop35, eta35) = CalcCopCurve(lookupTemps, VorlaufLow, etaPoints35);
-        var (cop55, eta55) = CalcCopCurve(lookupTemps, VorlaufHigh, etaPoints55);
+        // Clamp source temp to the highest outside temp in the COP data to avoid extrapolation
+        double sourceTempClamp = rawCopData.Count > 0
+            ? rawCopData.Max(p => p[1])
+            : DefaultSourceTempClamp;
+
+        var (cop35, eta35) = CalcCopCurve(lookupTemps, VorlaufLow, etaPoints35, sourceTempClamp);
+        var (cop55, eta55) = CalcCopCurve(lookupTemps, VorlaufHigh, etaPoints55, sourceTempClamp);
 
         var pMaxCustom = CalcVorlaufAdjustedCurve(lookupTemps, pMax35, pMax55, parameters);
 
@@ -369,7 +374,7 @@ public static class SimulationEngine
 
     // --- COP Curve Calculation ---
 
-    private static (double[] cop, double[] eta) CalcCopCurve(double[] lookupTemps, double flowTemp, List<double[]> etaPoints)
+    private static (double[] cop, double[] eta) CalcCopCurve(double[] lookupTemps, double flowTemp, List<double[]> etaPoints, double sourceTempClamp)
     {
         double maxCop = MathHelpers.GetMaxCop(flowTemp);
         var cop = new double[lookupTemps.Length];
@@ -378,7 +383,7 @@ public static class SimulationEngine
         for (int i = 0; i < lookupTemps.Length; i++)
         {
             double sourceTemp = lookupTemps[i];
-            double sourceTempClamped = Math.Min(sourceTemp, SourceTempClamp);
+            double sourceTempClamped = Math.Min(sourceTemp, sourceTempClamp);
 
             // COP = eta_carnot × COP_carnot, using clamped source temp to stay within data range
             double rawEta = MathHelpers.GetFlatEta(sourceTempClamped, etaPoints);
@@ -387,7 +392,7 @@ public static class SimulationEngine
 
             // Eta = actual COP / theoretical Carnot COP at the real (unclamped) source temp.
             // Below the clamp threshold both temps are identical, so we reuse the value above.
-            double carnotCopActual = sourceTemp <= SourceTempClamp
+            double carnotCopActual = sourceTemp <= sourceTempClamp
                 ? carnotCopClamped
                 : MathHelpers.GetCarnotCop(sourceTemp, flowTemp);
             eta[i] = cop[i] / carnotCopActual;
