@@ -1,0 +1,235 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<aside class="w-80 bg-white border-r border-gray-200 overflow-y-auto p-5 shadow-lg z-0">
+    <!-- Gebäude & Heizlast -->
+    <div class="mb-6">
+        <h3 class="section-title">Gebäude & Heizlast</h3>
+        <div class="grid grid-cols-1 gap-1">
+            <div class="input-group">
+                <label class="input-label">Wärmeverbrauch (Warmwasser + Raum) (kWh/a) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Der bisherige Jahresverbrauch deiner Öl- oder Gasheizung in kWh. (1 Liter Öl ≈ 10 kWh, 1 m³ Gas ≈ 10 kWh)</span>
+                <input type="number" @bind="Params.Jahresverbrauch" @bind:after="HandleParamChanged" class="input-field @(Validation.VJahresverbrauch ? "!border-red-400" : "")" />
+                @if (Validation.VJahresverbrauch) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">Wirkungsgrad alte Heizung (0.8-1.0) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Jahresnutzungsgrad der alten Öl- oder Gasheizung.<br>Standardkessel: ca. 0.8<br>Brennwert/Neu: ca. 0.95</span>
+                <input type="number" @bind="Params.Wirkungsgrad" @bind:after="HandleParamChanged" step="0.01" class="input-field @(Validation.VWirkungsgrad ? "!border-red-400" : "")" />
+                @if (Validation.VWirkungsgrad) { <span class="text-[10px] text-red-500">Muss zwischen 0 und 1.0 liegen</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">WW Anteil des Wärmeverbrauchs (%) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Wieviel eures Wärmeverbrauchs geht ins Warmwasser?<br>Typisch: 15-20% für 4 Personen.</span>
+                <input type="number" @bind="Params.WarmwasserAnteil" @bind:after="HandleParamChanged" class="input-field @(Validation.VWwAnteil ? "!border-red-400" : "")" />
+                @if (Validation.VWwAnteil) { <span class="text-[10px] text-red-500">Muss 0–100% sein</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">Heizgrenze (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Ab welcher Außentemperatur heizt ihr? (Altbau: 15°C, Neubau: 10-12°C, Durchheizen: 22°)</span>
+                <input type="number" @bind="Params.Heizgrenze" @bind:after="HandleParamChanged" class="input-field @(Validation.VHeizgrenze ? "!border-red-400" : "")" />
+                @if (Validation.VHeizgrenze) { <span class="text-[10px] text-red-500">Muss &gt; NAT (@(Params.NormAussentemperatur)°C) sein</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">NAT (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Norm-Außentemperatur für deinen Standort.<br><a href="https://www.waermepumpe.de/werkzeuge/klimakarte/" target="_blank">Hier Klimakarte öffnen</a></span>
+                <input type="number" @bind="Params.NormAussentemperatur" @bind:after="HandleParamChanged" class="input-field @(Validation.VNat ? "!border-red-400" : "")" />
+                @if (Validation.VNat) { <span class="text-[10px] text-red-500">Muss &lt; Heizgrenze (@(Params.Heizgrenze)°C) sein</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">Raum Soll (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Deine typische, gewünschte Raumtemperatur (z.B. 21°C oder 22°C).</span>
+                <input type="number" @bind="Params.RaumSollTemperatur" @bind:after="HandleParamChanged" class="input-field @(Validation.WRaumSoll ? "!border-orange-400" : "")" />
+                @if (Validation.WRaumSoll) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 18–24°C)</span> }
+            </div>
+        </div>
+    </div>
+
+    <!-- Preise -->
+    <div class="mb-6 p-3 bg-blue-50 rounded border border-blue-100">
+        <h3 class="font-bold text-gray-700 text-sm mb-2">Preise & Vergleich</h3>
+        <div class="input-group">
+            <label class="input-label">Strompreis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Dein erwarteter Strompreis für die WP (oft gibt es spezielle WP-Tarife, ca. 20-30 ct).</span>
+            <input type="number" @bind="Params.PreisStrom" @bind:after="HandleParamChanged" step="0.01" class="input-field @(Validation.VPreisStrom ? "!border-red-400" : "")" />
+            @if (Validation.VPreisStrom) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+        </div>
+        <div class="input-group">
+            <label class="input-label">Gas/Öl Preis (€/kWh) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Was zahlst du aktuell?<br><b>Gas:</b> Preis pro kWh<br><b>Öl:</b> Literpreis geteilt durch 10</span>
+            <input type="number" @bind="Params.PreisAlt" @bind:after="HandleParamChanged" step="0.01" class="input-field @(Validation.VPreisAlt ? "!border-red-400" : "")" />
+            @if (Validation.VPreisAlt) { <span class="text-[10px] text-red-500">Muss &gt; 0 sein</span> }
+        </div>
+    </div>
+
+    <!-- Hydraulik -->
+    <div class="mb-6">
+        <h3 class="section-title">Hydraulik (Vorlauf)</h3>
+        <div class="grid grid-cols-2 gap-2">
+            <div class="input-group">
+                <label class="input-label">Vorlauftemperatur Max <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip tooltip-right">Bei kältester Außentemperatur (NAT).<br><b>FBH:</b> 30-35°C<br><b>HK modern:</b> 45-50°C<br><b>HK alt:</b> 55-65°C</span>
+                <input type="number" @bind="Params.VorlaufMax" @bind:after="HandleParamChanged" class="input-field @(Validation.VVlMax ? "!border-red-400" : Validation.WVlMax ? "!border-orange-400" : "")" />
+                @if (Validation.VVlMax) { <span class="text-[10px] text-red-500">Muss &gt; VL Min sein</span> }
+                else if (Validation.WVlMax) { <span class="text-[10px] text-orange-500">Sehr hoch – COP wird niedrig</span> }
+            </div>
+            <div class="input-group">
+                <label class="input-label">Vorlauftemperatur Min <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Niedrigste VL bei mildem Wetter.<br><b>Typisch:</b> 25-30°C</span>
+                <input type="number" @bind="Params.VorlaufMin" @bind:after="HandleParamChanged" class="input-field @(Validation.VVlMin ? "!border-red-400" : "")" />
+                @if (Validation.VVlMin) { <span class="text-[10px] text-red-500">Muss &lt; VL Max sein</span> }
+            </div>
+            <div class="input-group col-span-2">
+                <label class="input-label">Warmwasser Temp im Speicher (°C) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip tooltip-left">Zieltemperatur im Speicher.<br><b>Effizient:</b> 45-48°C<br><b>Standard:</b> 50-52°C</span>
+                <input type="number" @bind="Params.WarmwasserTemp" @bind:after="HandleParamChanged" class="input-field @(Validation.WWwTemp ? "!border-orange-400" : "")" />
+                @if (Validation.WWwTemp) { <span class="text-[10px] text-orange-500">Ungewöhnlich (typisch: 45–55°C)</span> }
+            </div>
+        </div>
+    </div>
+
+    <!-- Heizstab -->
+    <div class="mb-6 p-3 bg-red-50 rounded border border-red-100">
+        <h3 class="font-bold text-gray-700 text-sm mb-2">Zusatzheizung</h3>
+        <div class="input-group">
+            <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
+            <input type="number" @bind="Params.HeizstabMax" @bind:after="HandleParamChanged" class="input-field @(Validation.VHeizstab ? "!border-red-400" : "")" />
+            @if (Validation.VHeizstab) { <span class="text-[10px] text-red-500">Muss &ge; 0 sein</span> }
+        </div>
+    </div>
+
+    <!-- Nachtabsenkung -->
+    <div class="mb-6 p-3 bg-gray-50 rounded border border-gray-200">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold text-gray-700 text-sm">Nachtabsenkung</h3>
+            <input type="checkbox" @bind="Params.NachtabsenkungAktiv" @bind:after="HandleParamChanged" />
+        </div>
+        <div class="grid grid-cols-2 gap-2 @(Params.NachtabsenkungAktiv ? "" : "opacity-50 pointer-events-none") transition-opacity">
+            <div class="input-group">
+                <label class="input-label">Start (h)</label>
+                <input type="number" @bind="Params.NachtStart" @bind:after="HandleParamChanged" class="input-field" />
+            </div>
+            <div class="input-group">
+                <label class="input-label">Ende (h)</label>
+                <input type="number" @bind="Params.NachtEnde" @bind:after="HandleParamChanged" class="input-field" />
+            </div>
+            <div class="input-group col-span-2">
+                <label class="input-label">Absenkung Delta (K)</label>
+                <input type="number" @bind="Params.NachtDeltaT" @bind:after="HandleParamChanged" step="0.5" class="input-field" />
+            </div>
+        </div>
+    </div>
+
+    <!-- WP Kennfeld -->
+    <div class="mb-6">
+        <h3 class="section-title">WP Kennfeld</h3>
+        <div class="input-group mb-4">
+            <label class="input-label text-blue-600 font-bold"><i class="fas fa-robot mr-1"></i> Modell Vorlage</label>
+            <select value="@SelectedPreset" @onchange="HandlePresetChange" class="input-field bg-blue-50 text-blue-900 border-blue-200 font-semibold cursor-pointer">
+                <option value="custom">-- Benutzerdefiniert --</option>
+                @if (CustomPresets.Count > 0)
+                {
+                    <optgroup label="Eigene Modelle">
+                        @foreach (var cp in CustomPresets)
+                        {
+                            <option value="@cp.Key">@cp.Name</option>
+                        }
+                    </optgroup>
+                }
+                @foreach (var group in Presets.GroupBy(p => p.Group))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var preset in group)
+                        {
+                            <option value="@preset.Key">@preset.Name</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        </div>
+        <div class="input-group flex gap-2 mb-2">
+            <button @onclick="OnSaveCustomPreset" class="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs py-1.5 px-3 rounded border border-blue-200 flex items-center justify-center gap-1">
+                <i class="fas fa-star"></i> Als Eigene speichern
+            </button>
+            @if (SelectedPreset.StartsWith("user_"))
+            {
+                <button @onclick="OnRenameCustomPreset" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1" title="Umbenennen">
+                    <i class="fas fa-pen"></i>
+                </button>
+                <button @onclick="OnDeleteCustomPreset" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded border border-red-200 flex items-center justify-center gap-1" title="Löschen">
+                    <i class="fas fa-trash"></i>
+                </button>
+            }
+        </div>
+        <div class="input-group flex gap-2 mb-3">
+            <button @onclick="OnSaveKennfeld" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1">
+                <i class="fas fa-download"></i> Export
+            </button>
+            <label class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1 cursor-pointer">
+                <i class="fas fa-upload"></i> Import
+                <InputFile OnChange="OnLoadKennfeld" accept=".json" class="hidden" />
+            </label>
+        </div>
+        <div class="text-xs text-gray-500 mb-2">Format: Temp,Wert (Neue Zeile für neuen Punkt)</div>
+        <div class="input-group">
+            <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
+            <textarea @bind="Params.RawPMax" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.VPMax ? "!border-red-400" : "")" rows="3"></textarea>
+            @if (Validation.VPMax) { <span class="text-[10px] text-red-500">Mind. 2 Datenpunkte (Temp, kW)</span> }
+        </div>
+        <div class="input-group">
+            <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Unterste Modulationsgrenze. Leer = Auto (25% von Max).</span>
+            <textarea @bind="Params.RawPMin" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
+        </div>
+        <div class="input-group">
+            <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
+            <textarea @bind="Params.RawCopData" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-32 @(Validation.VCop ? "!border-red-400" : "")" rows="6"></textarea>
+            @if (Validation.VCop) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
+        </div>
+    </div>
+
+    <div class="flex gap-2">
+        <button @onclick="OnUndo" disabled="@(UndoCount == 0)" class="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:pointer-events-none text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1" title="Rückgängig">
+            <i class="fas fa-rotate-left"></i> Undo (@UndoCount)
+        </button>
+        <button @onclick="OnRedo" disabled="@(RedoCount == 0)" class="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:pointer-events-none text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1" title="Wiederherstellen">
+            <i class="fas fa-rotate-right"></i> Redo (@RedoCount)
+        </button>
+    </div>
+    <button @onclick="OnResetToDefaults" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1">
+        <i class="fas fa-arrow-rotate-left"></i> Standardwerte
+    </button>
+</aside>
+
+@code {
+    [Parameter] public SimulationParameters Params { get; set; } = default!;
+    [Parameter] public ValidationState Validation { get; set; } = new();
+    [Parameter] public string SelectedPreset { get; set; } = "custom";
+    [Parameter] public List<HeatPumpPreset> Presets { get; set; } = [];
+    [Parameter] public List<HeatPumpPreset> CustomPresets { get; set; } = [];
+    [Parameter] public int UndoCount { get; set; }
+    [Parameter] public int RedoCount { get; set; }
+
+    [Parameter] public EventCallback OnParamChanged { get; set; }
+    [Parameter] public EventCallback<string> OnPresetSelected { get; set; }
+    [Parameter] public EventCallback OnResetPreset { get; set; }
+    [Parameter] public EventCallback OnSaveCustomPreset { get; set; }
+    [Parameter] public EventCallback OnRenameCustomPreset { get; set; }
+    [Parameter] public EventCallback OnDeleteCustomPreset { get; set; }
+    [Parameter] public EventCallback OnSaveKennfeld { get; set; }
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnLoadKennfeld { get; set; }
+    [Parameter] public EventCallback OnUndo { get; set; }
+    [Parameter] public EventCallback OnRedo { get; set; }
+    [Parameter] public EventCallback OnResetToDefaults { get; set; }
+
+    private async Task HandleParamChanged() => await OnParamChanged.InvokeAsync();
+
+    private async Task HandlePresetChange(ChangeEventArgs e)
+    {
+        await OnPresetSelected.InvokeAsync(e.Value?.ToString() ?? "custom");
+    }
+
+    private async Task HandleResetPreset() => await OnResetPreset.InvokeAsync();
+}

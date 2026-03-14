@@ -1,0 +1,143 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<header class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center z-10 gap-4">
+    <h1 class="text-xl font-bold text-blue-700 whitespace-nowrap">WP Simulator <span class="text-sm font-normal text-gray-500 hidden md:inline">Jahresarbeitszahl & Taktung</span> <a href="/changelog" class="text-xs font-normal text-gray-400 hover:text-blue-500 ml-1" title="Changelog"><i class="fas fa-clock-rotate-left"></i></a></h1>
+    <div class="flex items-center gap-2 w-full justify-end">
+        <div class="relative flex items-center">
+            <span class="text-xs text-gray-500 mr-2">Standort:</span>
+            <select value="@SelectedCity" @onchange="HandleCityChange" class="border border-gray-300 rounded px-2 py-2 text-xs w-32 focus:outline-none focus:border-blue-500 bg-white">
+                @if (string.IsNullOrEmpty(SelectedCity))
+                {
+                    <option value="">— Standort wählen —</option>
+                }
+                @foreach (var p in Profiles)
+                {
+                    <option value="@p.Key">@p.DisplayName</option>
+                }
+                @if (GeoLocationName != null)
+                {
+                    <option value="__geo__">@GeoLocationName</option>
+                }
+            </select>
+            <button @onclick="OnUseMyLocation" class="bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 px-2 rounded border border-blue-200 transition text-xs flex items-center gap-1" title="Meinen Standort verwenden" disabled="@GeoLoading">
+                @if (GeoLoading)
+                {
+                    <i class="fas fa-spinner fa-spin"></i>
+                }
+                else
+                {
+                    <i class="fas fa-location-crosshairs"></i>
+                }
+            </button>
+            @if (GeoLatitude.HasValue && GeoLongitude.HasValue)
+            {
+                <a href="https://www.openstreetmap.org/?mlat=@(GeoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))&mlon=@(GeoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))#map=12/@(GeoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))/@(GeoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                   target="_blank" class="bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 px-2 rounded border border-blue-200 transition text-xs flex items-center gap-1" title="Standort auf OpenStreetMap anzeigen">
+                    <i class="fas fa-map-location-dot"></i>
+                </a>
+            }
+        </div>
+
+        @if (AvailableYears.Count > 0)
+        {
+            <div class="relative flex items-center">
+                <span class="text-xs text-gray-500 mr-2">Jahr:</span>
+                <select value="@SelectedYear" @onchange="HandleYearChange" disabled="@(AvailableYears.Count <= 1)" class="border border-gray-300 rounded px-2 py-2 text-xs w-24 focus:outline-none focus:border-blue-500 bg-white">
+                    @if (AvailableYears.Count > 1)
+                    {
+                        <option value="all">Alle (Durchschnitt)</option>
+                    }
+                    @foreach (var y in AvailableYears.OrderBy(x => x))
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+            </div>
+        }
+
+        <div class="relative flex items-center">
+            <span class="text-xs text-gray-500 mr-2">Von:</span>
+            <input type="date" value="@StartDate.ToString("yyyy-MM-dd")" @onchange="HandleStartDateChange" class="border border-gray-300 rounded px-1 py-1.5 text-xs focus:outline-none focus:border-blue-500 bg-white" />
+        </div>
+        <div class="relative flex items-center">
+            <span class="text-xs text-gray-500 mr-2">Bis:</span>
+            <input type="date" value="@EndDate.ToString("yyyy-MM-dd")" @onchange="HandleEndDateChange" class="border border-gray-300 rounded px-1 py-1.5 text-xs focus:outline-none focus:border-blue-500 bg-white" />
+        </div>
+
+        <div class="hidden lg:block text-xs text-right mx-2 leading-tight w-24">
+            <div class="@StatusClass font-medium">@StatusText</div>
+            <div class="text-[10px] text-gray-400">@StatusSub</div>
+        </div>
+
+        <label class="bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer py-2 px-3 rounded border border-gray-300 transition text-xs flex items-center gap-2" title="Eigene CSV Datei hochladen">
+            <i class="fas fa-upload"></i> CSV
+            <InputFile OnChange="OnCsvUpload" accept=".csv" class="hidden" />
+        </label>
+
+        <button @onclick="OnRunSimulation" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow-lg transition transform hover:scale-105 ml-4 flex items-center gap-2 whitespace-nowrap">
+            <i class="fas fa-calculator"></i>
+            <span>BERECHNEN</span>
+        </button>
+
+        @if (ResultAvailable)
+        {
+            <button @onclick="OnAddToComparison" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded shadow transition text-xs flex items-center gap-1 whitespace-nowrap" title="Aktuelles Ergebnis zum Vergleich hinzufügen">
+                <i class="fas fa-plus"></i> Vergleich
+            </button>
+        }
+
+        <button @onclick="OnShareConfig" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded shadow transition text-xs flex items-center gap-1 whitespace-nowrap" title="Link mit aktueller Konfiguration kopieren">
+            <i class="fas @(ShareCopied ? "fa-check" : "fa-share-nodes")"></i> @(ShareCopied ? "Kopiert!" : "Teilen")
+        </button>
+    </div>
+</header>
+
+@code {
+    [Parameter] public string SelectedCity { get; set; } = "";
+    [Parameter] public List<ClimateProfile> Profiles { get; set; } = [];
+    [Parameter] public HashSet<int> AvailableYears { get; set; } = [];
+    [Parameter] public string SelectedYear { get; set; } = "";
+    [Parameter] public string? GeoLocationName { get; set; }
+    [Parameter] public double? GeoLatitude { get; set; }
+    [Parameter] public double? GeoLongitude { get; set; }
+    [Parameter] public bool GeoLoading { get; set; }
+    [Parameter] public string StatusText { get; set; } = "";
+    [Parameter] public string StatusSub { get; set; } = "";
+    [Parameter] public string StatusClass { get; set; } = "";
+    [Parameter] public DateTime StartDate { get; set; }
+    [Parameter] public DateTime EndDate { get; set; }
+    [Parameter] public bool ResultAvailable { get; set; }
+    [Parameter] public bool ShareCopied { get; set; }
+
+    [Parameter] public EventCallback<string> OnCitySelected { get; set; }
+    [Parameter] public EventCallback OnUseMyLocation { get; set; }
+    [Parameter] public EventCallback<string> OnYearSelected { get; set; }
+    [Parameter] public EventCallback<DateTime> OnStartDateChanged { get; set; }
+    [Parameter] public EventCallback<DateTime> OnEndDateChanged { get; set; }
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnCsvUpload { get; set; }
+    [Parameter] public EventCallback OnRunSimulation { get; set; }
+    [Parameter] public EventCallback OnAddToComparison { get; set; }
+    [Parameter] public EventCallback OnShareConfig { get; set; }
+
+    private async Task HandleCityChange(ChangeEventArgs e)
+    {
+        await OnCitySelected.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+    private async Task HandleYearChange(ChangeEventArgs e)
+    {
+        await OnYearSelected.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+    private async Task HandleStartDateChange(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+            await OnStartDateChanged.InvokeAsync(date);
+    }
+
+    private async Task HandleEndDateChange(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+            await OnEndDateChanged.InvokeAsync(date);
+    }
+}

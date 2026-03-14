@@ -1,0 +1,69 @@
+<div class="mb-8">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-bold text-gray-800 border-b-2 border-purple-200 pb-2 flex items-center gap-2">
+            <i class="fas fa-scale-balanced text-purple-500"></i> Wärmepumpen Vergleich
+        </h2>
+        <div class="flex items-center gap-3 no-print">
+            <button @onclick="OnExportCsv" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                <i class="fas fa-file-csv"></i> CSV Export
+            </button>
+            <button @onclick="OnClearAll" class="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
+                <i class="fas fa-trash"></i> Alle entfernen
+            </button>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modell</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Standort</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">JAZ</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Strom (kWh)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Kosten WP (€)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ersparnis (€)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Heizstab %</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Taktung %</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Abtau (h)</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"></th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @{ int bestJazIdx = Entries.IndexOf(Entries.MaxBy(e => e.Jaz)!); }
+                @for (int i = 0; i < Entries.Count; i++)
+                {
+                    var entry = Entries[i];
+                    var isBest = i == bestJazIdx;
+                    var rowClass = isBest ? "bg-green-50" : "";
+                    var idx = i;
+                    <tr class="@rowClass">
+                        <td class="px-4 py-2 font-semibold">
+                            @if (isBest) { <i class="fas fa-trophy text-yellow-500 mr-1"></i> }
+                            @entry.Name
+                        </td>
+                        <td class="px-4 py-2 text-gray-500">@entry.City</td>
+                        <td class="px-4 py-2 text-right font-bold text-blue-600">@entry.Jaz.ToString("F2")</td>
+                        <td class="px-4 py-2 text-right">@Math.Round(entry.TotalElectricity)</td>
+                        <td class="px-4 py-2 text-right">@Math.Round(entry.CostHeatPump) €</td>
+                        <td class="px-4 py-2 text-right @(entry.Savings > 0 ? "text-green-600" : "text-red-600") font-semibold">@Math.Round(entry.Savings) €</td>
+                        <td class="px-4 py-2 text-right @(entry.HeizstabShare > 5 ? "text-red-500" : "")">@entry.HeizstabShare.ToString("F1")%</td>
+                        <td class="px-4 py-2 text-right @(entry.CyclingPercent > 20 ? "text-yellow-600" : "")">@entry.CyclingPercent.ToString("F1")%</td>
+                        <td class="px-4 py-2 text-right">@entry.IcingHours</td>
+                        <td class="px-4 py-2 text-center">
+                            <button @onclick="() => OnRemoveEntry.InvokeAsync(idx)" class="text-gray-400 hover:text-red-500 transition">
+                                <i class="fas fa-xmark"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<ComparisonEntry> Entries { get; set; } = [];
+    [Parameter] public EventCallback<int> OnRemoveEntry { get; set; }
+    [Parameter] public EventCallback OnClearAll { get; set; }
+    [Parameter] public EventCallback OnExportCsv { get; set; }
+}
