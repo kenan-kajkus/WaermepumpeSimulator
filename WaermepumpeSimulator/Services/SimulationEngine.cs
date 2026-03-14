@@ -12,6 +12,8 @@ public class SimulationEngine
 
     public SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
+        ValidateInputs(parameters, weather);
+
         var lookupTemps = BuildLookupTable();
         var kennfeld = ParseKennfeld(parameters, lookupTemps);
         var loadProfile = CalcLoadProfile(parameters, weather);
@@ -23,6 +25,24 @@ public class SimulationEngine
         CalcCosts(parameters, result);
 
         return result;
+    }
+
+    private static void ValidateInputs(SimulationParameters parameters, List<WeatherDataPoint> weather)
+    {
+        if (weather.Count < HoursPerYear)
+            throw new ArgumentException($"Wetterdaten unvollständig: {weather.Count} von {HoursPerYear} Stunden vorhanden.");
+
+        var pMax = MathHelpers.ParseTextAreaPoints(parameters.RawPMax);
+        if (pMax.Count < 2)
+            throw new ArgumentException("Kennfeld PMax: Mindestens 2 Datenpunkte erforderlich.");
+        if (pMax.Any(p => p[1] <= 0))
+            throw new ArgumentException("Kennfeld PMax: Alle Leistungswerte müssen > 0 sein.");
+
+        var cop = MathHelpers.ParseCopData(parameters.RawCopData);
+        if (cop.Count < 2)
+            throw new ArgumentException("Kennfeld COP: Mindestens 2 Datenpunkte erforderlich.");
+        if (cop.Any(p => p[2] <= 0))
+            throw new ArgumentException("Kennfeld COP: Alle COP-Werte müssen > 0 sein.");
     }
 
     // --- Lookup Table ---

@@ -9,7 +9,9 @@ public static class MathHelpers
         if (x >= knownX[^1]) return knownY[^1];
         int i = 0;
         while (i < knownX.Length - 2 && x > knownX[i + 1]) i++;
-        return knownY[i] + (x - knownX[i]) * (knownY[i + 1] - knownY[i]) / (knownX[i + 1] - knownX[i]);
+        double dx = knownX[i + 1] - knownX[i];
+        if (dx == 0) return knownY[i];
+        return knownY[i] + (x - knownX[i]) * (knownY[i + 1] - knownY[i]) / dx;
     }
 
     public static double CalculateDewPoint(double temperature, double relativeHumidity)

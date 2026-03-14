@@ -55,6 +55,7 @@ public partial class Home
     private bool _vJahresverbrauch, _vWirkungsgrad, _vWwAnteil, _vHeizgrenze, _vNat;
     private bool _wRaumSoll, _vPreisStrom, _vPreisAlt, _vVlMax, _wVlMax, _vVlMin;
     private bool _wWwTemp, _vHeizstab, _vPMax, _vCop;
+    private bool _wPMaxNegative, _wCopRange, _wPMinExceedsPMax;
     private bool _renderEnabled = true;
     private DateTime _startDate = new(DateTime.Now.Year - 1, 1, 1);
     private DateTime _endDate = new(DateTime.Now.Year - 1, 12, 31);
@@ -74,7 +75,8 @@ public partial class Home
         VWwAnteil = _vWwAnteil, VHeizgrenze = _vHeizgrenze, VNat = _vNat,
         WRaumSoll = _wRaumSoll, VPreisStrom = _vPreisStrom, VPreisAlt = _vPreisAlt,
         VVlMax = _vVlMax, WVlMax = _wVlMax, VVlMin = _vVlMin,
-        WWwTemp = _wWwTemp, VHeizstab = _vHeizstab, VPMax = _vPMax, VCop = _vCop
+        WWwTemp = _wWwTemp, VHeizstab = _vHeizstab, VPMax = _vPMax, VCop = _vCop,
+        WPMaxNegative = _wPMaxNegative, WCopRange = _wCopRange, WPMinExceedsPMax = _wPMinExceedsPMax
     };
 
     protected override bool ShouldRender() => _renderEnabled;
@@ -525,8 +527,25 @@ public partial class Home
         _vVlMin = Params.VorlaufMin >= Params.VorlaufMax;
         _wWwTemp = Params.WarmwasserTemp is < 30 or > 70;
         _vHeizstab = Params.HeizstabMax < 0;
-        _vPMax = Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax).Count < 2;
-        _vCop = Helpers.MathHelpers.ParseCopData(Params.RawCopData).Count < 2;
+
+        var pMaxPoints = Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMax);
+        var pMinPoints = Helpers.MathHelpers.ParseTextAreaPoints(Params.RawPMin);
+        var copPoints = Helpers.MathHelpers.ParseCopData(Params.RawCopData);
+
+        _vPMax = pMaxPoints.Count < 2;
+        _vCop = copPoints.Count < 2;
+
+        // Warnings for parseable but questionable Kennfeld values
+        _wPMaxNegative = !_vPMax && pMaxPoints.Any(p => p[1] <= 0);
+        _wCopRange = !_vCop && copPoints.Any(p => p[2] <= 0 || p[2] > 15);
+        _wPMinExceedsPMax = false;
+        if (!_vPMax && pMinPoints.Count >= 2)
+        {
+            var maxTemps = pMaxPoints.Select(p => p[0]).ToArray();
+            var maxVals = pMaxPoints.Select(p => p[1]).ToArray();
+            _wPMinExceedsPMax = pMinPoints.Any(p => p[1] > Helpers.MathHelpers.Interp(p[0], maxTemps, maxVals));
+        }
+
         _hasValidationErrors = _vJahresverbrauch || _vWirkungsgrad || _vWwAnteil || _vHeizgrenze ||
             _vVlMax || _vPreisStrom || _vPreisAlt || _vHeizstab || _vPMax || _vCop;
     }

@@ -17,4 +17,9 @@ public class ValidationState
     public bool VHeizstab { get; set; }
     public bool VPMax { get; set; }
     public bool VCop { get; set; }
+
+    // Warnings (orange) — simulation runs but results may be questionable
+    public bool WPMaxNegative { get; set; }
+    public bool WCopRange { get; set; }
+    public bool WPMinExceedsPMax { get; set; }
 }

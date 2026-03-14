@@ -174,19 +174,22 @@
         <div class="input-group">
             <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
             <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
-            <textarea @bind="Params.RawPMax" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.VPMax ? "!border-red-400" : "")" rows="3"></textarea>
+            <textarea @bind="Params.RawPMax" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.VPMax ? "!border-red-400" : Validation.WPMaxNegative ? "!border-orange-400" : "")" rows="3"></textarea>
             @if (Validation.VPMax) { <span class="text-[10px] text-red-500">Mind. 2 Datenpunkte (Temp, kW)</span> }
+            else if (Validation.WPMaxNegative) { <span class="text-[10px] text-orange-500">Leistungswerte sollten &gt; 0 kW sein</span> }
         </div>
         <div class="input-group">
             <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
             <span class="tooltip">Unterste Modulationsgrenze. Leer = Auto (25% von Max).</span>
-            <textarea @bind="Params.RawPMin" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
+            <textarea @bind="Params.RawPMin" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.WPMinExceedsPMax ? "!border-orange-400" : "")" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
+            @if (Validation.WPMinExceedsPMax) { <span class="text-[10px] text-orange-500">PMin überschreitet PMax – Taktberechnung ungenau</span> }
         </div>
         <div class="input-group">
             <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
             <span class="tooltip">Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
-            <textarea @bind="Params.RawCopData" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-32 @(Validation.VCop ? "!border-red-400" : "")" rows="6"></textarea>
+            <textarea @bind="Params.RawCopData" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-32 @(Validation.VCop ? "!border-red-400" : Validation.WCopRange ? "!border-orange-400" : "")" rows="6"></textarea>
             @if (Validation.VCop) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
+            else if (Validation.WCopRange) { <span class="text-[10px] text-orange-500">COP-Werte sollten zwischen 0.5 und 15 liegen</span> }
         </div>
     </div>
 
