@@ -35,10 +35,15 @@
     private List<XYPoint> _wpPlusStab = [];
 
     private bool _dataChanged;
+    private SimulationResult? _prevResult;
+    private double _prevHeizstab;
 
     protected override void OnParametersSet()
     {
         if (Result == null) return;
+        if (Result == _prevResult && HeizstabMax == _prevHeizstab) return;
+        _prevResult = Result;
+        _prevHeizstab = HeizstabMax;
         var r = Result;
 
         _demandLine = [new(r.DesignTemperature, r.LoadAtDesignTemp), new(r.HeatingLimitTemperature, r.WarmwaterBaseLoad)];
