@@ -44,6 +44,7 @@ public partial class Home
     private double? _geoLongitude;
     private bool _geoLoading;
     private bool _simulating;
+    private bool _simulationDirty;
     private bool _shareCopied;
     private Timer? _debounceTimer;
     private Timer? _renderTimer;
@@ -572,18 +573,34 @@ public partial class Home
     {
         UpdateValidationCache();
         if (_weatherData.Count == 0 || _hasValidationErrors) return;
+
+        if (_simulating)
+        {
+            _simulationDirty = true;
+            return;
+        }
+
         _precalcCts?.Cancel();
+        _simulating = true;
+        _simulationDirty = false;
         try
         {
             _resultCache.Clear();
-            _simulating = true;
             StateHasChanged();
-            await Task.Yield();
+            await Task.Delay(1);
             _result = Engine.Run(Params, _weatherData);
             _eval = EvaluationService.Evaluate(_result);
             _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
             _resultCache[_selectedYear] = (_result, _eval, _monthly);
             _simulating = false;
+
+            if (_simulationDirty)
+            {
+                _simulationDirty = false;
+                await RunSimulation();
+                return;
+            }
+
             StateHasChanged();
             await SaveState();
             await PrecalculateOtherYears();
@@ -591,6 +608,7 @@ public partial class Home
         catch (Exception ex)
         {
             _simulating = false;
+            _simulationDirty = false;
             _statusText = "Fehler";
             _statusSub = ex.Message.Length > 40 ? ex.Message[..40] + "…" : ex.Message;
             _statusClass = "text-red-600";
