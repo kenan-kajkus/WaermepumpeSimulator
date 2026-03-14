@@ -33,6 +33,7 @@ public partial class Home
     private string _selectedYear = "2023";
     private string _selectedPreset = "custom";
     private string _activeTab = "dashboard";
+    private readonly HashSet<string> _visitedTabs = ["dashboard"];
 
     private bool _initializing = true;
     private string _statusText = "Lade...";
