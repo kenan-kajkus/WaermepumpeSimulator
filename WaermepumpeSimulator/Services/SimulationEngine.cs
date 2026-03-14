@@ -322,8 +322,7 @@ public static class SimulationEngine
         SimulationParameters parameters, double[] lookupTemps, KennfeldCurves kennfeld, LoadProfile load, SimulationResult result)
     {
         double loadAtDesign = (parameters.Heizgrenze - parameters.NormAussentemperatur) * load.LoadPerKelvin + load.WarmwaterPerHour;
-        double vorlaufBlendAtDesign = VorlaufFactor(parameters.VorlaufMax);
-        double heatPumpPowerAtDesign = LerpInterp(parameters.NormAussentemperatur, lookupTemps, kennfeld.PMax35, kennfeld.PMax55, vorlaufBlendAtDesign);
+        double heatPumpPowerAtDesign = InterpUniform(parameters.NormAussentemperatur, lookupTemps, kennfeld.PMaxCustom);
 
         result.LoadAtDesignTemp = loadAtDesign;
         result.HeatPumpPowerAtDesignTemp = heatPumpPowerAtDesign;
@@ -332,14 +331,16 @@ public static class SimulationEngine
         result.WarmwaterBaseLoad = load.WarmwaterPerHour;
 
         // Bivalence point: where load exceeds WP capacity
-        // lookupTemps is uniformly spaced: -25 to 40 in 0.5° steps
-        for (double temp = parameters.Heizgrenze; temp >= -25; temp -= 0.1)
+        // Integer steps (×10) to avoid floating point accumulation
+        int startTenths = (int)(parameters.Heizgrenze * 10);
+        for (int t10 = startTenths; t10 >= -250; t10--)
         {
+            double temp = t10 / 10.0;
             double currentLoad = (parameters.Heizgrenze - temp) * load.LoadPerKelvin + load.WarmwaterPerHour;
-            int idx = Math.Clamp((int)((temp + 25) / 0.5), 0, lookupTemps.Length - 1);
-            if (currentLoad > kennfeld.PMaxCustom[idx])
+            double wpPower = InterpUniform(temp, lookupTemps, kennfeld.PMaxCustom);
+            if (currentLoad > wpPower)
             {
-                result.BivalenceTemperature = Math.Round(temp, 1);
+                result.BivalenceTemperature = temp;
                 result.BivalencePower = currentLoad;
                 break;
             }
