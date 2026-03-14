@@ -368,9 +368,18 @@ public static class SimulationEngine
         {
             double sourceTemp = lookupTemps[i];
             double sourceTempClamped = Math.Min(sourceTemp, SourceTempClamp);
+
+            // COP = eta_carnot × COP_carnot, using clamped source temp to stay within data range
             double rawEta = MathHelpers.GetFlatEta(sourceTempClamped, etaPoints);
-            cop[i] = Math.Clamp(rawEta * MathHelpers.GetCarnotCop(sourceTempClamped, flowTemp), 1.0, maxCop);
-            eta[i] = cop[i] / MathHelpers.GetCarnotCop(sourceTemp, flowTemp);
+            double carnotCopClamped = MathHelpers.GetCarnotCop(sourceTempClamped, flowTemp);
+            cop[i] = Math.Clamp(rawEta * carnotCopClamped, 1.0, maxCop);
+
+            // Eta = actual COP / theoretical Carnot COP at the real (unclamped) source temp.
+            // Below the clamp threshold both temps are identical, so we reuse the value above.
+            double carnotCopActual = sourceTemp <= SourceTempClamp
+                ? carnotCopClamped
+                : MathHelpers.GetCarnotCop(sourceTemp, flowTemp);
+            eta[i] = cop[i] / carnotCopActual;
         }
 
         return (cop, eta);
