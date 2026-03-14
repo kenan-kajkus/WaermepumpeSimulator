@@ -10,7 +10,6 @@ public partial class Home
 {
     [Inject] private WeatherDataService WeatherSvc { get; set; } = default!;
     [Inject] private HeatPumpPresetService PresetSvc { get; set; } = default!;
-    [Inject] private SimulationEngine Engine { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private HttpClient Http { get; set; } = default!;
     [Inject] private NavigationManager Nav { get; set; } = default!;
@@ -592,7 +591,7 @@ public partial class Home
             _resultCache.Clear();
             StateHasChanged();
             await Task.Delay(1);
-            _result = Engine.Run(Params, _weatherData);
+            _result = SimulationEngine.Run(Params, _weatherData);
             _eval = EvaluationService.Evaluate(_result);
             _monthly = EvaluationService.CalcMonthly(_result, Params.PreisStrom);
             _resultCache[_selectedYear] = (_result, _eval, _monthly);
@@ -641,7 +640,7 @@ public partial class Home
             // so it can paint and process input between each year's simulation
             await Task.Delay(1);
             if (ct.IsCancellationRequested) return;
-            var result = Engine.Run(Params, weatherData);
+            var result = SimulationEngine.Run(Params, weatherData);
             var eval = EvaluationService.Evaluate(result);
             var monthly = EvaluationService.CalcMonthly(result, Params.PreisStrom);
             if (ct.IsCancellationRequested) return;

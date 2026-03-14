@@ -10,6 +10,5 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 builder.Services.AddScoped<WeatherDataService>();
 builder.Services.AddScoped<HeatPumpPresetService>();
-builder.Services.AddSingleton<SimulationEngine>();
 
 await builder.Build().RunAsync();

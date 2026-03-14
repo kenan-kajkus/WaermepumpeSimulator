@@ -3,7 +3,7 @@ using WaermepumpeSimulator.Models;
 
 namespace WaermepumpeSimulator.Services;
 
-public class SimulationEngine
+public static class SimulationEngine
 {
     private const int HoursPerYear = 8760;
 
@@ -37,7 +37,7 @@ public class SimulationEngine
     private const double MinHeatingLoad = 0.1;              // Minimum load to count as "heating active" (kW)
     private const double MinPowerBalance = 0.001;           // Below this load, power balance is zero (kW)
 
-    public SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
+    public static SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
         ValidateInputs(parameters, weather);
 
@@ -76,9 +76,10 @@ public class SimulationEngine
 
     private static double[] BuildLookupTable()
     {
-        var temperatures = new List<double>();
-        for (double t = -25; t <= 40; t += 0.5) temperatures.Add(t);
-        return temperatures.ToArray();
+        var temperatures = new double[131]; // -25 to 40 in 0.5° steps
+        for (int i = 0; i < temperatures.Length; i++)
+            temperatures[i] = -25 + i * 0.5;
+        return temperatures;
     }
 
     // --- Kennfeld (characteristic map) ---
@@ -103,11 +104,17 @@ public class SimulationEngine
         var pMax35 = lookupTemps.Select(temp => MathHelpers.Interp(temp, powerMaxTemps, powerMaxValues)).ToArray();
         var pMax55 = pMax35.Select(value => value * P55ScalingFactor).ToArray();
 
-        var pMin35 = rawPowerMin.Count > 0
-            ? lookupTemps.Select(temp => MathHelpers.Interp(temp,
-                rawPowerMin.Select(point => point[0]).ToArray(),
-                rawPowerMin.Select(point => point[1]).ToArray())).ToArray()
-            : pMax35.Select(value => value * DefaultPMinFraction).ToArray();
+        double[] pMin35;
+        if (rawPowerMin.Count > 0)
+        {
+            double[] pMinTemps = rawPowerMin.Select(point => point[0]).ToArray();
+            double[] pMinValues = rawPowerMin.Select(point => point[1]).ToArray();
+            pMin35 = lookupTemps.Select(temp => MathHelpers.Interp(temp, pMinTemps, pMinValues)).ToArray();
+        }
+        else
+        {
+            pMin35 = pMax35.Select(value => value * DefaultPMinFraction).ToArray();
+        }
         var pMin55 = pMin35.Select(value => value * P55ScalingFactor).ToArray();
 
         var etaPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow);
@@ -171,6 +178,8 @@ public class SimulationEngine
     {
         int icingHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
         double smoothedOutsideTemp = InitialSmoothedTemp;
+        double heatingCurveSlope = (parameters.VorlaufMax - parameters.VorlaufMin)
+                                   / (parameters.Heizgrenze - parameters.NormAussentemperatur);
 
         for (int hour = 0; hour < HoursPerYear; hour++)
         {
@@ -182,7 +191,7 @@ public class SimulationEngine
             smoothedOutsideTemp = smoothedOutsideTemp * SmoothingRetain + outsideTemp * SmoothingNew;
 
             // Heating load & vorlauf for this hour
-            var (heatingLoad, vorlauf) = CalcHourlyLoad(parameters, outsideTemp, smoothedOutsideTemp, hourOfDay, load);
+            var (heatingLoad, vorlauf) = CalcHourlyLoad(parameters, outsideTemp, smoothedOutsideTemp, hourOfDay, load, heatingCurveSlope);
             double totalLoad = heatingLoad + load.WarmwaterPerHour;
 
             // Available power at current conditions
@@ -227,13 +236,12 @@ public class SimulationEngine
     }
 
     private static (double heatingLoad, double vorlauf) CalcHourlyLoad(
-        SimulationParameters parameters, double outsideTemp, double smoothedTemp, int hourOfDay, LoadProfile load)
+        SimulationParameters parameters, double outsideTemp, double smoothedTemp, int hourOfDay, LoadProfile load, double heatingCurveSlope)
     {
         if (smoothedTemp >= parameters.Heizgrenze)
             return (0, parameters.WarmwasserTemp);
 
         double heatingLoad = Math.Max(0, (parameters.Heizgrenze - outsideTemp) * load.LoadPerKelvin);
-        double heatingCurveSlope = (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur);
         double vorlauf = parameters.VorlaufMin + heatingCurveSlope * (parameters.Heizgrenze - outsideTemp);
 
         if (parameters.NachtabsenkungAktiv && IsNightHour(hourOfDay, parameters.NachtStart, parameters.NachtEnde))
@@ -288,15 +296,15 @@ public class SimulationEngine
 
     private static void CalcAggregates(SimulationResult result)
     {
-        double totalThermal = result.ThermalPower.Sum() + result.HeizstabPower.Sum();
-        double totalElectrical = result.ElectricalPower.Sum() + result.HeizstabPower.Sum();
         double totalHeizstab = result.HeizstabPower.Sum();
+        double totalThermal = result.ThermalPower.Sum() + totalHeizstab;
+        double totalElectrical = result.ElectricalPower.Sum() + totalHeizstab;
 
         result.Jaz = totalElectrical > 0 ? totalThermal / totalElectrical : 0;
         result.TotalElectricity = totalElectrical;
         result.TotalHeat = totalThermal;
         result.HeizstabShare = totalThermal > 0 ? (totalHeizstab / totalThermal) * 100 : 0;
-        result.DeficitHours = result.Deficit.Count(d => d > 0.1);
+        result.DeficitHours = result.Deficit.Count(d => d > MinHeatingLoad);
         result.DeficitKwh = result.Deficit.Sum();
     }
 
@@ -316,11 +324,11 @@ public class SimulationEngine
         result.WarmwaterBaseLoad = load.WarmwaterPerHour;
 
         // Bivalence point: where load exceeds WP capacity
+        // lookupTemps is uniformly spaced: -25 to 40 in 0.5° steps
         for (double temp = parameters.Heizgrenze; temp >= -25; temp -= 0.1)
         {
             double currentLoad = (parameters.Heizgrenze - temp) * load.LoadPerKelvin + load.WarmwaterPerHour;
-            int idx = Array.FindIndex(lookupTemps, val => val >= temp);
-            if (idx == -1) idx = 0;
+            int idx = Math.Clamp((int)((temp + 25) / 0.5), 0, lookupTemps.Length - 1);
             if (currentLoad > kennfeld.PMaxCustom[idx])
             {
                 result.BivalenceTemperature = Math.Round(temp, 1);
