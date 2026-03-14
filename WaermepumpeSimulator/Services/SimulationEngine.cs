@@ -39,10 +39,10 @@ public static class SimulationEngine
 
     public static SimulationResult Run(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
-        ValidateInputs(parameters, weather);
+        var parsed = ParseAndValidateInputs(parameters, weather);
 
         var lookupTemps = BuildLookupTable();
-        var kennfeld = ParseKennfeld(parameters, lookupTemps);
+        var kennfeld = BuildKennfeld(parameters, lookupTemps, parsed);
         var loadProfile = CalcLoadProfile(parameters, weather);
         var result = InitResult(lookupTemps, kennfeld);
 
@@ -54,7 +54,9 @@ public static class SimulationEngine
         return result;
     }
 
-    private static void ValidateInputs(SimulationParameters parameters, List<WeatherDataPoint> weather)
+    private record ParsedInput(List<double[]> RawPowerMax, List<double[]> RawPowerMin, List<double[]> RawCopData);
+
+    private static ParsedInput ParseAndValidateInputs(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
         if (weather.Count < HoursPerYear)
             throw new ArgumentException($"Wetterdaten unvollständig: {weather.Count} von {HoursPerYear} Stunden vorhanden.");
@@ -70,6 +72,10 @@ public static class SimulationEngine
             throw new ArgumentException("Kennfeld COP: Mindestens 2 Datenpunkte erforderlich.");
         if (cop.Any(p => p[2] <= 0))
             throw new ArgumentException("Kennfeld COP: Alle COP-Werte müssen > 0 sein.");
+
+        var pMin = MathHelpers.ParseTextAreaPoints(parameters.RawPMin);
+
+        return new ParsedInput(pMax, pMin, cop);
     }
 
     // --- Lookup Table ---
@@ -92,11 +98,11 @@ public static class SimulationEngine
         double[] Eta35, double[] Eta55,
         List<double[]> RawCopPoints);
 
-    private static KennfeldCurves ParseKennfeld(SimulationParameters parameters, double[] lookupTemps)
+    private static KennfeldCurves BuildKennfeld(SimulationParameters parameters, double[] lookupTemps, ParsedInput parsed)
     {
-        var rawPowerMax = MathHelpers.ParseTextAreaPoints(parameters.RawPMax);
-        var rawPowerMin = MathHelpers.ParseTextAreaPoints(parameters.RawPMin);
-        var rawCopData = MathHelpers.ParseCopData(parameters.RawCopData);
+        var rawPowerMax = parsed.RawPowerMax;
+        var rawPowerMin = parsed.RawPowerMin;
+        var rawCopData = parsed.RawCopData;
 
         double[] powerMaxTemps = rawPowerMax.Select(point => point[0]).ToArray();
         double[] powerMaxValues = rawPowerMax.Select(point => point[1]).ToArray();
@@ -178,8 +184,9 @@ public static class SimulationEngine
     {
         int icingHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
         double smoothedOutsideTemp = InitialSmoothedTemp;
-        double heatingCurveSlope = (parameters.VorlaufMax - parameters.VorlaufMin)
-                                   / (parameters.Heizgrenze - parameters.NormAussentemperatur);
+        double heatingCurveSlope = Math.Abs(parameters.Heizgrenze - parameters.NormAussentemperatur) > 0.01
+            ? (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur)
+            : 0;
 
         for (int hour = 0; hour < HoursPerYear; hour++)
         {
@@ -246,8 +253,9 @@ public static class SimulationEngine
 
         if (parameters.NachtabsenkungAktiv && IsNightHour(hourOfDay, parameters.NachtStart, parameters.NachtEnde))
         {
-            double roomReduction = Math.Max(0.0, (parameters.RaumSollTemperatur - parameters.NachtDeltaT) - outsideTemp)
-                                   / Math.Max(0.1, parameters.RaumSollTemperatur - outsideTemp);
+            double roomReduction = Math.Clamp(
+                Math.Max(0.0, (parameters.RaumSollTemperatur - parameters.NachtDeltaT) - outsideTemp)
+                / Math.Max(0.1, parameters.RaumSollTemperatur - outsideTemp), 0.0, 1.0);
             heatingLoad *= roomReduction;
             vorlauf -= heatingCurveSlope * parameters.NachtDeltaT * NightSetbackVorlaufFactor;
         }
@@ -403,7 +411,9 @@ public static class SimulationEngine
     {
         if (outsideTemp >= parameters.Heizgrenze)
             return parameters.VorlaufMin;
-        double slope = (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur);
+        double slope = Math.Abs(parameters.Heizgrenze - parameters.NormAussentemperatur) > 0.01
+            ? (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur)
+            : 0;
         return Math.Clamp(parameters.VorlaufMin + slope * (parameters.Heizgrenze - outsideTemp), parameters.VorlaufMin, parameters.VorlaufMax);
     }
 
@@ -413,7 +423,21 @@ public static class SimulationEngine
     private static double Lerp(double valueA, double valueB, double blend) => valueA + blend * (valueB - valueA);
 
     private static double LerpInterp(double outsideTemp, double[] lookupTemps, double[] vals35, double[] vals55, double vorlaufBlend)
-        => Lerp(MathHelpers.Interp(outsideTemp, lookupTemps, vals35), MathHelpers.Interp(outsideTemp, lookupTemps, vals55), vorlaufBlend);
+        => Lerp(InterpUniform(outsideTemp, lookupTemps, vals35), InterpUniform(outsideTemp, lookupTemps, vals55), vorlaufBlend);
+
+    /// <summary>
+    /// Fast interpolation for uniformly-spaced lookup tables (0.5° steps from -25 to 40).
+    /// Replaces linear scan with direct index calculation.
+    /// </summary>
+    private static double InterpUniform(double x, double[] knownX, double[] knownY)
+    {
+        if (x <= knownX[0]) return knownY[0];
+        if (x >= knownX[^1]) return knownY[^1];
+        double pos = (x - knownX[0]) / 0.5;
+        int i = (int)pos;
+        double frac = pos - i;
+        return knownY[i] + frac * (knownY[i + 1] - knownY[i]);
+    }
 
     private static bool IsNightHour(int hourOfDay, int nightStart, int nightEnd)
         => nightStart > nightEnd
