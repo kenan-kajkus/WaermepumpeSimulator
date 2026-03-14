@@ -88,7 +88,6 @@ public partial class Home
 
     protected override void OnInitialized()
     {
-        _profiles = WeatherDataService.GetClimateProfiles();
         _presets = PresetSvc.GetAllPresets();
     }
 
@@ -96,6 +95,7 @@ public partial class Home
     {
         if (firstRender)
         {
+            _profiles = await WeatherSvc.LoadClimateProfilesAsync();
             await LoadCustomPresets();
             await RestoreState();
             ApplySharedConfig();

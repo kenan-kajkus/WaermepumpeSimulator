@@ -1,0 +1,20 @@
+[
+  { "key": "hamburg",   "name": "Hamburg",              "displayName": "Hamburg (20095)",              "latitude": 53.55, "longitude":  9.99 },
+  { "key": "berlin",    "name": "Berlin",               "displayName": "Berlin (10115)",               "latitude": 52.52, "longitude": 13.41 },
+  { "key": "koeln",     "name": "Köln",                 "displayName": "Köln (50667)",                 "latitude": 50.94, "longitude":  6.96 },
+  { "key": "frankfurt", "name": "Frankfurt",            "displayName": "Frankfurt (60311)",            "latitude": 50.11, "longitude":  8.68 },
+  { "key": "muenchen",  "name": "München",              "displayName": "München (80331)",              "latitude": 48.14, "longitude": 11.58 },
+  { "key": "hof",       "name": "Hof",                  "displayName": "Hof (95028)",                  "latitude": 50.31, "longitude": 11.91 },
+  { "key": "garmisch",  "name": "Garmisch",             "displayName": "Garmisch (82467)",             "latitude": 47.50, "longitude": 11.10 },
+  { "key": "wien",      "name": "Wien",                 "displayName": "Wien (1010)",                  "latitude": 48.21, "longitude": 16.37 },
+  { "key": "graz",      "name": "Graz",                 "displayName": "Graz (8010)",                  "latitude": 47.07, "longitude": 15.44 },
+  { "key": "innsbruck", "name": "Innsbruck",            "displayName": "Innsbruck (6020)",             "latitude": 47.26, "longitude": 11.39 },
+  { "key": "salzburg",  "name": "Salzburg",             "displayName": "Salzburg (5020)",              "latitude": 47.80, "longitude": 13.04 },
+  { "key": "zuerich",   "name": "Zürich",               "displayName": "Zürich (8001)",                "latitude": 47.37, "longitude":  8.54 },
+  { "key": "bern",      "name": "Bern",                 "displayName": "Bern (3011)",                  "latitude": 46.95, "longitude":  7.45 },
+  { "key": "basel",     "name": "Basel",                "displayName": "Basel (4001)",                 "latitude": 47.56, "longitude":  7.59 },
+  { "key": "stuttgart", "name": "Stuttgart",            "displayName": "Stuttgart (70173)",            "latitude": 48.78, "longitude":  9.18 },
+  { "key": "hannover",  "name": "Hannover",             "displayName": "Hannover (30159)",             "latitude": 52.37, "longitude":  9.74 },
+  { "key": "dresden",   "name": "Dresden",              "displayName": "Dresden (01067)",              "latitude": 51.05, "longitude": 13.74 },
+  { "key": "freiburg",  "name": "Freiburg",             "displayName": "Freiburg (79098)",             "latitude": 47.99, "longitude":  7.85 }
+]

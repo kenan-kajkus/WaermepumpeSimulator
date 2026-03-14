@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Json;
 using System.Text.Json;
 using WaermepumpeSimulator.Models;
 
@@ -7,27 +8,34 @@ namespace WaermepumpeSimulator.Services;
 public class WeatherDataService
 {
     private readonly HttpClient _http;
+    private List<ClimateProfile>? _profiles;
 
     public WeatherDataService(HttpClient http)
     {
         _http = http;
     }
 
-    public static List<ClimateProfile> GetClimateProfiles() =>
-    [
-        new() { Key = "hamburg",   Name = "Hamburg",   DisplayName = "Hamburg (20095)",   Latitude = 53.55, Longitude = 9.99 },
-        new() { Key = "berlin",    Name = "Berlin",    DisplayName = "Berlin (10115)",    Latitude = 52.52, Longitude = 13.41 },
-        new() { Key = "koeln",     Name = "Köln",      DisplayName = "Köln (50667)",      Latitude = 50.94, Longitude = 6.96 },
-        new() { Key = "frankfurt", Name = "Frankfurt", DisplayName = "Frankfurt (60311)", Latitude = 50.11, Longitude = 8.68 },
-        new() { Key = "muenchen",  Name = "München",   DisplayName = "München (80331)",   Latitude = 48.14, Longitude = 11.58 },
-        new() { Key = "hof",       Name = "Hof",       DisplayName = "Hof (95028)",       Latitude = 50.31, Longitude = 11.91 },
-        new() { Key = "garmisch",  Name = "Garmisch",  DisplayName = "Garmisch (82467)",  Latitude = 47.50, Longitude = 11.10 },
-    ];
+    public async Task<List<ClimateProfile>> LoadClimateProfilesAsync()
+    {
+        if (_profiles != null) return _profiles;
+        try
+        {
+            _profiles = await _http.GetFromJsonAsync<List<ClimateProfile>>("data/cities.json") ?? [];
+        }
+        catch
+        {
+            _profiles = [];
+        }
+        return _profiles;
+    }
+
+    public List<ClimateProfile> GetClimateProfiles() => _profiles ?? [];
 
     public async Task<(List<WeatherDataPoint> data, bool isSynthetic, HashSet<int> years)> LoadPresetWeatherAsync(
         string cityKey, DateTime startDate, DateTime endDate)
     {
-        var profile = GetClimateProfiles().Find(p => p.Key == cityKey) ?? GetClimateProfiles()[3];
+        var profiles = await LoadClimateProfilesAsync();
+        var profile = profiles.Find(p => p.Key == cityKey) ?? profiles[0];
         var (data, years) = await FetchOpenMeteoAsync(profile.Latitude, profile.Longitude, startDate, endDate);
         if (data.Count > 0)
             return (data, false, years);
