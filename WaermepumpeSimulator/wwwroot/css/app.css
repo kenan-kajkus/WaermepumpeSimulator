@@ -30,7 +30,7 @@ body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
 textarea.input-field { resize: vertical; font-family: monospace; font-size: 0.75rem; }
 
 @media print {
-    header, aside, .no-print { display: none !important; }
+    header, aside, .no-print, .fixed.bg-black\/50 { display: none !important; }
     .flex.flex-1.overflow-hidden { display: block !important; }
     main { overflow: visible !important; padding: 0 !important; }
     .flex.flex-col.h-screen.overflow-hidden { display: block !important; height: auto !important; overflow: visible !important; }

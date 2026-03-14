@@ -46,6 +46,7 @@ public partial class Home
     private bool _simulating;
     private bool _simulationDirty;
     private bool _shareCopied;
+    private bool _sidebarOpen;
     private Timer? _debounceTimer;
     private Timer? _renderTimer;
     private CancellationTokenSource? _precalcCts;
@@ -530,6 +531,8 @@ public partial class Home
     }
 
     private bool HasValidationErrors() => _hasValidationErrors;
+
+    private void ToggleSidebar() => _sidebarOpen = !_sidebarOpen;
 
     private void UpdateValidationCache()
     {
