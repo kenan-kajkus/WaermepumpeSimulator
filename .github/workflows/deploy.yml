@@ -21,6 +21,9 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Test
+        run: dotnet test WaermepumpeSimulator.Tests --configuration Release --verbosity normal
+
       - name: Publish
         run: dotnet publish WaermepumpeSimulator/WaermepumpeSimulator.csproj -c Release -o ./publish
 

@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaermepumpeSimulator", "WaermepumpeSimulator\WaermepumpeSimulator.csproj", "{CF8D3263-74D7-474C-80C2-89476A59FB8B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaermepumpeSimulator.Tests", "WaermepumpeSimulator.Tests\WaermepumpeSimulator.Tests.csproj", "{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,6 +26,18 @@ Global
 		{CF8D3263-74D7-474C-80C2-89476A59FB8B}.Release|x64.Build.0 = Release|Any CPU
 		{CF8D3263-74D7-474C-80C2-89476A59FB8B}.Release|x86.ActiveCfg = Release|Any CPU
 		{CF8D3263-74D7-474C-80C2-89476A59FB8B}.Release|x86.Build.0 = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|x64.Build.0 = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Debug|x86.Build.0 = Debug|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|x64.ActiveCfg = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|x64.Build.0 = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|x86.ActiveCfg = Release|Any CPU
+		{336F295A-66B7-46E1-B7D9-4B2F0DB54EAA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

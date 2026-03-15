@@ -12,6 +12,33 @@
 
     <div class="space-y-6">
 
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-16</span>
+                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-semibold">Verbesserung</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Simulations-Engine optimiert</h3>
+            <p class="text-sm text-gray-600">Die Berechnungs-Engine wurde umfassend &uuml;berarbeitet: O(1)-Interpolation f&uuml;r Lookup-Tables statt linearer Suche, LINQ durch for-Schleifen ersetzt (weniger GC-Druck in WASM), Division-durch-Null-Schutz bei Heizkurve, ganzzahlige Bivalenzpunkt-Suche gegen Gleitkomma-Akkumulation, und datengetriebene Quellentemperatur-Klemmung aus den COP-Daten statt festem 15&deg;C-Wert.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-orange-500">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-16</span>
+                <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-semibold">Fix</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Energieerhaltung korrigiert</h3>
+            <p class="text-sm text-gray-600">Bei Wirkungsgrad 1.0 und 0% Warmwasser wich die Gesamtw&auml;rme um ~1,8% vom Jahresverbrauch ab. Ursache: Das Lastprofil verwendete die tats&auml;chliche Temperatur als Heizgrenze-Gate, w&auml;hrend die Stundensimulation die gegl&auml;ttete Temperatur nutzte. Beide verwenden jetzt denselben Gl&auml;ttungsfilter.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-blue-500">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-16</span>
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Neu</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Unit-Tests &amp; CI-Pipeline</h3>
+            <p class="text-sm text-gray-600">107 automatisierte Tests (xUnit) f&uuml;r SimulationEngine, MathHelpers, EvaluationService, WeatherDataService, HeatPumpPresetService und SimulationParameters. Abgedeckt: Validierung, Energieerhaltung, JAZ, COP, Leistungsbilanz, Nachtabsenkung, Vereisung, Taktung, Warmwasser und zahlreiche Grenzf&auml;lle. Tests laufen automatisch in der Deploy-Pipeline.</p>
+        </div>
+
         <div class="bg-white rounded-lg shadow p-5 border-l-4 border-blue-500">
             <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-14</span>
