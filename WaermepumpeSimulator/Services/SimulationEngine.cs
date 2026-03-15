@@ -178,10 +178,17 @@ public static class SimulationEngine
 
     private static LoadProfile CalcLoadProfile(SimulationParameters parameters, List<WeatherDataPoint> weather)
     {
+        // Must use the same smoothed-temperature gate as RunHourlySimulation,
+        // otherwise hours where actual < Heizgrenze but smoothed >= Heizgrenze
+        // are counted here but skipped in the simulation, losing ~1-2% of energy.
         double sumDeltaT = 0;
+        double smoothed = InitialSmoothedTemp;
         foreach (var weatherPoint in weather)
-            if (weatherPoint.Temperature < parameters.Heizgrenze)
+        {
+            smoothed = smoothed * SmoothingRetain + weatherPoint.Temperature * SmoothingNew;
+            if (smoothed < parameters.Heizgrenze && weatherPoint.Temperature < parameters.Heizgrenze)
                 sumDeltaT += parameters.Heizgrenze - weatherPoint.Temperature;
+        }
 
         double heatingShare = 1.0 - parameters.WarmwasserAnteil / 100.0;
         double totalUsableHeat = parameters.Jahresverbrauch * parameters.Wirkungsgrad;
