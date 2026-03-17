@@ -64,13 +64,22 @@
         {
             Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Verlauf & Taktung" },
-            Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde im Jahr" } },
+            Xaxis = new XAxis
+            {
+                Labels = new XAxisLabels { Formatter = @"function(val) { var m=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; var h=[0,744,1416,2160,2880,3624,4344,5088,5832,6552,7296,8016]; for(var i=11;i>=0;i--){if(val>=h[i])return m[i];} return ''; }" },
+                TickAmount = 12
+            },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Colors = ["#1f2937", "#9ca3af", "#dc2626"],
             Stroke = new Stroke { Width = new List<double> { 2, 2, 0 }, DashArray = new List<double> { 0, 4, 0 } },
             Markers = new Markers { Size = new List<double> { 0, 0, 3 } },
             Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" } }
+            Tooltip = new Tooltip
+            {
+                Enabled = true,
+                Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(1); }" },
+                X = new TooltipX { Formatter = @"function(val) { var d=[31,28,31,30,31,30,31,31,30,31,30,31]; var m=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; var h=Math.floor(val); var mo=0; while(mo<11 && h>=d[mo]*24){h-=d[mo]*24;mo++;} var tag=Math.floor(h/24)+1; var std=h%24; return tag+'. '+m[mo]+', '+std+':00'; }" }
+            }
         };
         _dataChanged = true;
     }
