@@ -108,9 +108,20 @@
             </div>
         </div>
 
-        <label class="hidden md:flex bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer py-1.5 px-3 rounded border border-gray-300 transition text-xs items-center gap-2" title="Eigene CSV Datei hochladen">
+        <label class="hidden md:flex bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer py-1.5 px-3 rounded border border-gray-300 transition text-xs items-center gap-2 relative group" title="Eigene CSV Datei hochladen">
             <i class="fas fa-upload"></i> CSV
             <InputFile OnChange="OnCsvUpload" accept=".csv" class="hidden" />
+            <div class="invisible group-hover:visible absolute top-full left-0 mt-1 w-72 bg-gray-800 text-white text-xs rounded-lg shadow-lg p-3 z-50 leading-relaxed">
+                <div class="font-bold mb-1">CSV-Format (kommagetrennt):</div>
+                <div class="font-mono bg-gray-900 rounded p-1.5 mb-1.5 text-[10px]">
+                    time,temperature_2m,relative_humidity_2m<br/>
+                    2023-01-01T00:00,-2.1,89<br/>
+                    2023-01-01T01:00,-2.5,91<br/>
+                    ...
+                </div>
+                <div><b>Spalten:</b> date/time, temp/t2m (&deg;C), rh/humidity (%)</div>
+                <div class="text-gray-400 mt-1">Feuchte ist optional. Min. 100 st&uuml;ndliche Datenpunkte. Open-Meteo Export wird direkt unterst&uuml;tzt.</div>
+            </div>
         </label>
     </div>
 </header>
