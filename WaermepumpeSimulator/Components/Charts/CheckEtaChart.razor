@@ -62,7 +62,7 @@
 
         _options = new ApexChartOptions<XYPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(2); }" } }],

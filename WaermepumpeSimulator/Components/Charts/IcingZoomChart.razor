@@ -44,7 +44,7 @@
 
         _options = new ApexChartOptions<XYPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Januar Woche (Temp vs Taupunkt)" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde" } },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "°C" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],

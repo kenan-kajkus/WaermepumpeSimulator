@@ -49,7 +49,7 @@
 
         _options = new ApexChartOptions<ScatterPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Icing Map" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Temperatur (°C)" } },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "Rel. Feuchte (%)" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(0); }" } }],

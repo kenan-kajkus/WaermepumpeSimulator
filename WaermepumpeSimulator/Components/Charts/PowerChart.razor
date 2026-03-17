@@ -62,7 +62,7 @@
 
         _options = new ApexChartOptions<XYPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Verlauf & Taktung" },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Stunde im Jahr" } },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "kW" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],

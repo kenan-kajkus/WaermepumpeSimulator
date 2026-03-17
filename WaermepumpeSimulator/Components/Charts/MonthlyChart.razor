@@ -41,7 +41,7 @@
 
         _options = new ApexChartOptions<MonthlyChartPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Title = new Title { Text = "Monatsbilanz" },
             PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { Horizontal = false, ColumnWidth = "60%" } },
             Colors = ["#3b82f6", "#f97316"],

@@ -58,7 +58,7 @@
 
         _options = new ApexChartOptions<XYPoint>
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
             Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
             Yaxis = [new YAxis { Title = new AxisTitle { Text = "Leistung (kW)" }, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" } }],
             Stroke = new Stroke { Width = new List<double> { 4, 3, 2 }, DashArray = new List<double> { 0, 0, 4 } },
