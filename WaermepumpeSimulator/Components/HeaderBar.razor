@@ -63,6 +63,14 @@
                     <i class="fas fa-location-crosshairs"></i>
                 }
             </button>
+            <div class="flex items-center">
+                <input type="text" @bind="_postalCode" @bind:event="oninput" @onkeydown="HandlePlzKeyDown"
+                       placeholder="PLZ" maxlength="10"
+                       class="border border-gray-300 rounded-l px-2 py-1.5 text-xs w-16 sm:w-20 focus:outline-none focus:border-blue-500 bg-white" />
+                <button @onclick="HandlePlzSearch" class="bg-blue-50 hover:bg-blue-100 text-blue-600 py-1.5 px-2 rounded-r border border-l-0 border-blue-200 transition text-xs flex items-center" title="Postleitzahl suchen" disabled="@GeoLoading">
+                    <i class="fas fa-magnifying-glass"></i>
+                </button>
+            </div>
             @if (GeoLatitude.HasValue && GeoLongitude.HasValue)
             {
                 <a href="https://www.openstreetmap.org/?mlat=@(GeoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))&mlon=@(GeoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))#map=12/@(GeoLatitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))/@(GeoLongitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))"
@@ -126,6 +134,7 @@
 
     [Parameter] public EventCallback<string> OnCitySelected { get; set; }
     [Parameter] public EventCallback OnUseMyLocation { get; set; }
+    [Parameter] public EventCallback<string> OnPostalCodeSearch { get; set; }
     [Parameter] public EventCallback<string> OnYearSelected { get; set; }
     [Parameter] public EventCallback<DateTime> OnStartDateChanged { get; set; }
     [Parameter] public EventCallback<DateTime> OnEndDateChanged { get; set; }
@@ -134,6 +143,20 @@
     [Parameter] public EventCallback OnAddToComparison { get; set; }
     [Parameter] public EventCallback OnShareConfig { get; set; }
     [Parameter] public EventCallback OnToggleSidebar { get; set; }
+
+    private string _postalCode = "";
+
+    private async Task HandlePlzSearch()
+    {
+        if (!string.IsNullOrWhiteSpace(_postalCode))
+            await OnPostalCodeSearch.InvokeAsync(_postalCode.Trim());
+    }
+
+    private async Task HandlePlzKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await HandlePlzSearch();
+    }
 
     private async Task HandleCityChange(ChangeEventArgs e)
     {

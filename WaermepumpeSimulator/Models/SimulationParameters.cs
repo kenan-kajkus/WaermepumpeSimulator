@@ -33,26 +33,7 @@ public class SimulationParameters
     public string RawPMin { get; set; } = "";
     public string RawCopData { get; set; } = "35, -7, 2.80\n35, 2, 3.41\n35, 7, 4.55\n55, -7, 2.13\n55, 2, 2.41\n55, 7, 3.03";
 
-    public SimulationParameters Clone() => new()
-    {
-        Jahresverbrauch = Jahresverbrauch,
-        Wirkungsgrad = Wirkungsgrad,
-        WarmwasserAnteil = WarmwasserAnteil,
-        Heizgrenze = Heizgrenze,
-        NormAussentemperatur = NormAussentemperatur,
-        RaumSollTemperatur = RaumSollTemperatur,
-        PreisStrom = PreisStrom,
-        PreisAlt = PreisAlt,
-        VorlaufMax = VorlaufMax,
-        VorlaufMin = VorlaufMin,
-        WarmwasserTemp = WarmwasserTemp,
-        HeizstabMax = HeizstabMax,
-        NachtabsenkungAktiv = NachtabsenkungAktiv,
-        NachtStart = NachtStart,
-        NachtEnde = NachtEnde,
-        NachtDeltaT = NachtDeltaT,
-        RawPMax = RawPMax,
-        RawPMin = RawPMin,
-        RawCopData = RawCopData
-    };
+    // MemberwiseClone copies all fields — no risk of forgetting new properties.
+    // Safe here because all fields are value types or immutable strings.
+    public SimulationParameters Clone() => (SimulationParameters)MemberwiseClone();
 }

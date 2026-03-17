@@ -225,6 +225,83 @@ public partial class Home
         }
     }
 
+    private async Task SearchPostalCode(string postalCode)
+    {
+        _geoLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var ic = System.Globalization.CultureInfo.InvariantCulture;
+
+            // Search postal code as free text with addressdetails for clean city name extraction
+            var url = $"https://nominatim.openstreetmap.org/search?q={Uri.EscapeDataString(postalCode)}&format=json&limit=5&addressdetails=1&accept-language=de";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "WPSimulator/1.0");
+            var response = await Http.SendAsync(request);
+            var json = await response.Content.ReadAsStringAsync();
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var arr = doc.RootElement;
+
+            if (arr.GetArrayLength() == 0)
+            {
+                _statusText = "PLZ nicht gefunden";
+                _statusSub = postalCode;
+                _statusClass = "text-red-600";
+                return;
+            }
+
+            // Prefer result whose postcode matches and type is a place/boundary, not a building
+            System.Text.Json.JsonElement item = arr[0];
+            for (int i = 0; i < arr.GetArrayLength(); i++)
+            {
+                var candidate = arr[i];
+                var type = candidate.TryGetProperty("type", out var t) ? t.GetString() : "";
+                if (type is "postcode" or "postal_code" or "administrative" or "city" or "town" or "village")
+                {
+                    item = candidate;
+                    break;
+                }
+            }
+
+            var lat = double.Parse(item.GetProperty("lat").GetString()!, ic);
+            var lon = double.Parse(item.GetProperty("lon").GetString()!, ic);
+
+            // Extract city name from addressdetails
+            string cityName = postalCode;
+            if (item.TryGetProperty("address", out var addr))
+            {
+                cityName = addr.TryGetProperty("city", out var city) ? city.GetString()!
+                    : addr.TryGetProperty("town", out var town) ? town.GetString()!
+                    : addr.TryGetProperty("village", out var village) ? village.GetString()!
+                    : addr.TryGetProperty("municipality", out var muni) ? muni.GetString()!
+                    : postalCode;
+            }
+
+            var (data, years) = await WeatherSvc.FetchOpenMeteoAsync(lat, lon, _startDate, _endDate);
+
+            _geoLocationName = $"{postalCode} {cityName}";
+            _geoLatitude = lat;
+            _geoLongitude = lon;
+            _selectedCity = "__geo__";
+
+            ApplyWeatherData(data, years, _geoLocationName);
+            _statusClass = "text-green-600";
+
+            await RunSimulation();
+        }
+        catch (Exception ex)
+        {
+            _statusText = "PLZ-Fehler";
+            _statusSub = ex.Message.Length > 30 ? ex.Message[..30] + "..." : ex.Message;
+            _statusClass = "text-red-600";
+        }
+        finally
+        {
+            _geoLoading = false;
+        }
+    }
+
     private async Task HandleYearSelected(string year)
     {
         _selectedYear = year;
