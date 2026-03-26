@@ -1,4 +1,4 @@
-@* Structured COP Kennfeld editor — replaces raw textarea with individual fields per row *@
+@* Structured COP Kennfeld editor with sorted rows and tab-to-add *@
 
 <div class="input-group">
     <label class="input-label">COP Kennfeld <i class="fas fa-circle-question help-icon"></i></label>
@@ -24,32 +24,40 @@
     @for (int idx = 0; idx < _rows.Count; idx++)
     {
         var i = idx;
+        var empty = IsRowEmpty(_rows[i]);
         <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
             <input type="text" inputmode="decimal" value="@_rows[i].VL"
                    @onchange="e => OnFieldChanged(i, 0, e)"
                    @oninput="OnInput"
-                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+                   placeholder="@(empty ? "VL" : "")"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
             <input type="text" inputmode="decimal" value="@_rows[i].AT"
                    @onchange="e => OnFieldChanged(i, 1, e)"
                    @oninput="OnInput"
-                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+                   placeholder="@(empty ? "AT" : "")"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
             <input type="text" inputmode="decimal" value="@_rows[i].CopPMax"
                    @onchange="e => OnFieldChanged(i, 2, e)"
                    @oninput="OnInput"
-                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+                   placeholder="@(empty ? "COP" : "")"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
             <input type="text" inputmode="decimal" value="@_rows[i].CopPMin"
                    @onchange="e => OnFieldChanged(i, 3, e)"
                    @oninput="OnInput"
-                   class="cop-cell" placeholder="—" />
-            <button @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
-                <i class="fas fa-xmark"></i>
-            </button>
+                   placeholder="—"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "")" />
+            @if (!empty)
+            {
+                <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            }
+            else
+            {
+                <span></span>
+            }
         </div>
     }
-
-    <button @onclick="AddRow" class="w-full mt-1 bg-gray-50 hover:bg-gray-100 text-gray-500 text-[10px] py-1 rounded border border-dashed border-gray-300 flex items-center justify-center gap-1">
-        <i class="fas fa-plus text-[8px]"></i> Zeile
-    </button>
 </div>
 
 @code {
@@ -70,12 +78,17 @@
         public string CopPMin { get; set; } = "";
     }
 
+    private static bool IsRowEmpty(CopRow r)
+        => string.IsNullOrWhiteSpace(r.VL) && string.IsNullOrWhiteSpace(r.AT)
+           && string.IsNullOrWhiteSpace(r.CopPMax) && string.IsNullOrWhiteSpace(r.CopPMin);
+
     protected override void OnParametersSet()
     {
-        // Only re-parse if the value changed externally (preset, import, undo)
         if (Value != _lastSerialized)
         {
             _rows = ParseRows(Value);
+            SortRows();
+            EnsureSentinel();
             _lastSerialized = Value;
         }
     }
@@ -101,22 +114,48 @@
         return rows;
     }
 
+    private void SortRows()
+    {
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        _rows = _rows
+            .Where(r => !IsRowEmpty(r))
+            .OrderBy(r => double.TryParse(r.VL, System.Globalization.NumberStyles.Float, ic, out var v) ? v : double.MaxValue)
+            .ThenBy(r => double.TryParse(r.AT, System.Globalization.NumberStyles.Float, ic, out var v) ? v : double.MaxValue)
+            .ToList();
+    }
+
+    private void EnsureSentinel()
+    {
+        if (_rows.Count == 0 || !IsRowEmpty(_rows[^1]))
+            _rows.Add(new CopRow());
+    }
+
     private string Serialize()
     {
-        var lines = _rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.VL) || !string.IsNullOrWhiteSpace(r.AT) || !string.IsNullOrWhiteSpace(r.CopPMax))
-            .Select(r =>
-            {
-                var line = $"{r.VL}, {r.AT}, {r.CopPMax}";
-                if (!string.IsNullOrWhiteSpace(r.CopPMin))
-                    line += $", {r.CopPMin}";
-                return line;
-            });
-        return string.Join("\n", lines);
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var dataRows = _rows.Where(r => !IsRowEmpty(r)).ToList();
+        dataRows.Sort((a, b) =>
+        {
+            double.TryParse(a.VL, System.Globalization.NumberStyles.Float, ic, out var avl);
+            double.TryParse(b.VL, System.Globalization.NumberStyles.Float, ic, out var bvl);
+            int cmp = avl.CompareTo(bvl);
+            if (cmp != 0) return cmp;
+            double.TryParse(a.AT, System.Globalization.NumberStyles.Float, ic, out var aat);
+            double.TryParse(b.AT, System.Globalization.NumberStyles.Float, ic, out var bat);
+            return aat.CompareTo(bat);
+        });
+        return string.Join("\n", dataRows.Select(r =>
+        {
+            var line = $"{r.VL}, {r.AT}, {r.CopPMax}";
+            if (!string.IsNullOrWhiteSpace(r.CopPMin))
+                line += $", {r.CopPMin}";
+            return line;
+        }));
     }
 
     private async Task EmitChange()
     {
+        EnsureSentinel();
         _lastSerialized = Serialize();
         await ValueChanged.InvokeAsync(_lastSerialized);
     }
@@ -134,20 +173,10 @@
         await EmitChange();
     }
 
-    private async Task AddRow()
-    {
-        // Default VL based on existing rows
-        string defaultVL = _rows.Count > 0 ? _rows[^1].VL : "35";
-        _rows.Add(new CopRow { VL = defaultVL, AT = "", CopPMax = "", CopPMin = "" });
-        await EmitChange();
-    }
-
     private async Task RemoveRow(int index)
     {
-        if (_rows.Count > 0)
-        {
-            _rows.RemoveAt(index);
-            await EmitChange();
-        }
+        _rows.RemoveAt(index);
+        EnsureSentinel();
+        await EmitChange();
     }
 }

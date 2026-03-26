@@ -1,4 +1,4 @@
-@* Structured power data editor — replaces raw textarea with individual fields per row *@
+@* Structured power data editor with sorted rows and tab-to-add *@
 
 <div class="input-group">
     <label class="input-label">@Label <i class="fas fa-circle-question help-icon"></i></label>
@@ -13,36 +13,39 @@
         <span class="text-[10px] text-orange-500 mb-1 block">@WarningText</span>
     }
 
-    @if (_rows.Count > 0)
-    {
-        <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
-            <span>AT (°C)</span>
-            <span>kW</span>
-            <span></span>
-        </div>
-    }
+    <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
+        <span>AT (°C)</span>
+        <span>kW</span>
+        <span></span>
+    </div>
 
     @for (int idx = 0; idx < _rows.Count; idx++)
     {
         var i = idx;
+        var empty = IsRowEmpty(_rows[i]);
         <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
             <input type="text" inputmode="decimal" value="@_rows[i].Temp"
                    @onchange="e => OnFieldChanged(i, 0, e)"
                    @oninput="OnInput"
-                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+                   placeholder="@(empty ? "°C" : "")"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
             <input type="text" inputmode="decimal" value="@_rows[i].Value"
                    @onchange="e => OnFieldChanged(i, 1, e)"
                    @oninput="OnInput"
-                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
-            <button @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
-                <i class="fas fa-xmark"></i>
-            </button>
+                   placeholder="@(empty ? "kW" : "")"
+                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+            @if (!empty)
+            {
+                <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            }
+            else
+            {
+                <span></span>
+            }
         </div>
     }
-
-    <button @onclick="AddRow" class="w-full mt-1 bg-gray-50 hover:bg-gray-100 text-gray-500 text-[10px] py-1 rounded border border-dashed border-gray-300 flex items-center justify-center gap-1">
-        <i class="fas fa-plus text-[8px]"></i> Zeile
-    </button>
 </div>
 
 @code {
@@ -65,11 +68,16 @@
         public string Value { get; set; } = "";
     }
 
+    private static bool IsRowEmpty(PowerRow r)
+        => string.IsNullOrWhiteSpace(r.Temp) && string.IsNullOrWhiteSpace(r.Value);
+
     protected override void OnParametersSet()
     {
         if (Value != _lastSerialized)
         {
             _rows = ParseRows(Value);
+            SortRows();
+            EnsureSentinel();
             _lastSerialized = Value;
         }
     }
@@ -93,16 +101,38 @@
         return rows;
     }
 
+    private void SortRows()
+    {
+        _rows = _rows
+            .Where(r => !IsRowEmpty(r))
+            .OrderBy(r => double.TryParse(r.Temp, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : double.MaxValue)
+            .ToList();
+    }
+
+    private void EnsureSentinel()
+    {
+        if (_rows.Count == 0 || !IsRowEmpty(_rows[^1]))
+            _rows.Add(new PowerRow());
+    }
+
     private string Serialize()
     {
-        var lines = _rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.Temp) || !string.IsNullOrWhiteSpace(r.Value))
-            .Select(r => $"{r.Temp}, {r.Value}");
-        return string.Join("\n", lines);
+        var dataRows = _rows.Where(r => !IsRowEmpty(r)).ToList();
+        dataRows.Sort((a, b) =>
+        {
+            double.TryParse(a.Temp, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var av);
+            double.TryParse(b.Temp, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var bv);
+            return av.CompareTo(bv);
+        });
+        return string.Join("\n", dataRows.Select(r => $"{r.Temp}, {r.Value}"));
     }
 
     private async Task EmitChange()
     {
+        EnsureSentinel();
         _lastSerialized = Serialize();
         await ValueChanged.InvokeAsync(_lastSerialized);
     }
@@ -115,18 +145,10 @@
         await EmitChange();
     }
 
-    private async Task AddRow()
-    {
-        _rows.Add(new PowerRow());
-        await EmitChange();
-    }
-
     private async Task RemoveRow(int index)
     {
-        if (_rows.Count > 0)
-        {
-            _rows.RemoveAt(index);
-            await EmitChange();
-        }
+        _rows.RemoveAt(index);
+        EnsureSentinel();
+        await EmitChange();
     }
 }
