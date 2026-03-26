@@ -70,7 +70,7 @@ public static class SimulationEngine
         var cop = MathHelpers.ParseCopData(parameters.RawCopData);
         if (cop.Count < 2)
             throw new ArgumentException("Kennfeld COP: Mindestens 2 Datenpunkte erforderlich.");
-        if (cop.Any(p => p[2] <= 0))
+        if (cop.Any(p => p[2] <= 0 || p[3] <= 0))
             throw new ArgumentException("Kennfeld COP: Alle COP-Werte müssen > 0 sein.");
 
         var pMin = MathHelpers.ParseTextAreaPoints(parameters.RawPMin);
@@ -96,6 +96,9 @@ public static class SimulationEngine
         double[] PMaxCustom,
         double[] Cop35, double[] Cop55,
         double[] Eta35, double[] Eta55,
+        double[] CopPMin35, double[] CopPMin55,
+        double[] EtaPMin35, double[] EtaPMin55,
+        bool HasPMinCop,
         List<double[]> RawCopPoints);
 
     private static KennfeldCurves BuildKennfeld(SimulationParameters parameters, double[] lookupTemps, ParsedInput parsed)
@@ -145,17 +148,26 @@ public static class SimulationEngine
         var (cop35, eta35) = CalcCopCurve(lookupTemps, VorlaufLow, etaPoints35, sourceTempClamp);
         var (cop55, eta55) = CalcCopCurve(lookupTemps, VorlaufHigh, etaPoints55, sourceTempClamp);
 
+        // Build PMin COP curves (index 3 = COP at min power)
+        bool hasPMinCop = rawCopData.Any(p => Math.Abs(p[3] - p[2]) > 0.001);
+        var etaPMinPoints35 = ExtractEtaPoints(rawCopData, VorlaufLow, 3);
+        var etaPMinPoints55 = ExtractEtaPoints(rawCopData, VorlaufHigh, 3);
+        var (copPMin35, etaPMin35) = CalcCopCurve(lookupTemps, VorlaufLow, etaPMinPoints35, sourceTempClamp);
+        var (copPMin55, etaPMin55) = CalcCopCurve(lookupTemps, VorlaufHigh, etaPMinPoints55, sourceTempClamp);
+
         var pMaxCustom = CalcVorlaufAdjustedCurve(lookupTemps, pMax35, pMax55, parameters);
 
         return new KennfeldCurves(pMax35, pMax55, pMin35, pMin55, pMaxCustom,
-            cop35, cop55, eta35, eta55, rawCopData);
+            cop35, cop55, eta35, eta55,
+            copPMin35, copPMin55, etaPMin35, etaPMin55, hasPMinCop,
+            rawCopData);
     }
 
-    private static List<double[]> ExtractEtaPoints(List<double[]> copData, double targetVorlauf)
+    private static List<double[]> ExtractEtaPoints(List<double[]> copData, double targetVorlauf, int copIndex = 2)
     {
         return copData
             .Where(point => Math.Abs(point[0] - targetVorlauf) < EtaMatchRadius)
-            .Select(point => new[] { point[1], point[2] / MathHelpers.GetCarnotCop(point[1], point[0]) })
+            .Select(point => new[] { point[1], point[copIndex] / MathHelpers.GetCarnotCop(point[1], point[0]) })
             .OrderBy(point => point[0])
             .ToList();
     }
@@ -239,8 +251,20 @@ public static class SimulationEngine
             if (isHeating) heatingHoursTotal++;
             if (isCycling) cyclingHoursTotal++;
 
-            // COP at current conditions
-            double cop = LerpInterp(outsideTemp, lookupTemps, kennfeld.Cop35, kennfeld.Cop55, vorlaufBlend) * icingPenalty;
+            // COP at current conditions — blend between PMin COP and PMax COP based on load factor
+            double copPMax = LerpInterp(outsideTemp, lookupTemps, kennfeld.Cop35, kennfeld.Cop55, vorlaufBlend);
+            double cop;
+            if (kennfeld.HasPMinCop && maxPowerAvail > minPowerAvail)
+            {
+                double copPMin = LerpInterp(outsideTemp, lookupTemps, kennfeld.CopPMin35, kennfeld.CopPMin55, vorlaufBlend);
+                double loadFactor = Math.Clamp((totalLoad - minPowerAvail) / (maxPowerAvail - minPowerAvail), 0, 1);
+                cop = Lerp(copPMin, copPMax, loadFactor);
+            }
+            else
+            {
+                cop = copPMax;
+            }
+            cop *= icingPenalty;
 
             // Power balance
             var (thermal, electrical, heizstab, deficit) = CalcPowerBalance(totalLoad, maxPowerAvail, cop, parameters.HeizstabMax);
@@ -436,6 +460,11 @@ public static class SimulationEngine
             CopAtVL55 = kennfeld.Cop55,
             EtaAtVL35 = kennfeld.Eta35,
             EtaAtVL55 = kennfeld.Eta55,
+            CopPMinAtVL35 = kennfeld.CopPMin35,
+            CopPMinAtVL55 = kennfeld.CopPMin55,
+            EtaPMinAtVL35 = kennfeld.EtaPMin35,
+            EtaPMinAtVL55 = kennfeld.EtaPMin55,
+            HasPMinCop = kennfeld.HasPMinCop,
             RawCopPoints = kennfeld.RawCopPoints,
         };
     }

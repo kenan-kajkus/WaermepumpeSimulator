@@ -636,7 +636,7 @@ public partial class Home
 
         // Warnings for parseable but questionable Kennfeld values
         _wPMaxNegative = !_vPMax && pMaxPoints.Any(p => p[1] <= 0);
-        _wCopRange = !_vCop && copPoints.Any(p => p[2] <= 0 || p[2] > 15);
+        _wCopRange = !_vCop && copPoints.Any(p => p[2] <= 0 || p[2] > 15 || p[3] <= 0 || p[3] > 15);
         _wPMinExceedsPMax = false;
         if (!_vPMax && pMinPoints.Count >= 2)
         {

@@ -72,7 +72,9 @@ public static class MathHelpers
     }
 
     /// <summary>
-    /// Parse "flowTemp, outsideTemp, cop" lines from textarea text.
+    /// Parse "flowTemp, outsideTemp, copPMax[, copPMin]" lines from textarea text.
+    /// Returns 4-element arrays: [VL, AT, COP@PMax, COP@PMin].
+    /// If only 3 columns, COP@PMin defaults to COP@PMax.
     /// </summary>
     public static List<double[]> ParseCopData(string text)
     {
@@ -86,7 +88,13 @@ public static class MathHelpers
                 double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double outsideTemp) &&
                 double.TryParse(parts[2].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double cop))
             {
-                points.Add([flowTemp, outsideTemp, cop]);
+                double copPMin = cop; // default: same as PMax
+                if (parts.Length >= 4 &&
+                    double.TryParse(parts[3].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed))
+                {
+                    copPMin = parsed;
+                }
+                points.Add([flowTemp, outsideTemp, cop, copPMin]);
             }
         }
         return points;

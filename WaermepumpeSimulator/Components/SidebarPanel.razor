@@ -192,8 +192,8 @@
             @if (Validation.WPMinExceedsPMax) { <span class="text-[10px] text-orange-500">PMin überschreitet PMax – Taktberechnung ungenau</span> }
         </div>
         <div class="input-group">
-            <label class="input-label">COP Kennfeld (VL, AT, COP) <i class="fas fa-circle-question help-icon"></i></label>
-            <span class="tooltip">Format: Vorlauf, Außen, COP.<br>Beispiel: 35, -7, 2.8</span>
+            <label class="input-label">COP Kennfeld (VL, AT, COP, [COP PMin]) <i class="fas fa-circle-question help-icon"></i></label>
+            <span class="tooltip">Format: Vorlauf, Außen, COP bei PMax[, COP bei PMin].<br>Beispiel: 35, -7, 2.8, 3.5<br>4. Spalte optional – wenn leer, gilt COP für alle Leistungsstufen.</span>
             <textarea @bind="Params.RawCopData" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-32 @(Validation.VCop ? "!border-red-400" : Validation.WCopRange ? "!border-orange-400" : "")" rows="6"></textarea>
             @if (Validation.VCop) { <span class="text-[10px] text-red-500">Mind. 2 COP-Datenpunkte (VL, AT, COP)</span> }
             else if (Validation.WCopRange) { <span class="text-[10px] text-orange-500">COP-Werte sollten zwischen 0.5 und 15 liegen</span> }

@@ -27,6 +27,11 @@ public class SimulationResult
     public double[] CopAtVL55 { get; set; } = [];
     public double[] EtaAtVL35 { get; set; } = [];
     public double[] EtaAtVL55 { get; set; } = [];
+    public double[] CopPMinAtVL35 { get; set; } = [];
+    public double[] CopPMinAtVL55 { get; set; } = [];
+    public double[] EtaPMinAtVL35 { get; set; } = [];
+    public double[] EtaPMinAtVL55 { get; set; } = [];
+    public bool HasPMinCop { get; set; }
 
     // Aggregated results
     public double Jaz { get; set; }

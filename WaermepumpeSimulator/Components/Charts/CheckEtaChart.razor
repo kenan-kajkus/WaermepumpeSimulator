@@ -5,28 +5,55 @@
     <ApexChart TItem="XYPoint" Options="_options" Height="500" XAxisType="XAxisType.Numeric" @ref="_chart">
         <ApexPointSeries TItem="XYPoint"
                          Items="_eta35"
-                         Name="η W35"
+                         Name="@(_hasPMin ? "η PMax W35" : "η W35")"
                          SeriesType="SeriesType.Line"
                          XValue="p => p.X"
                          YValue="p => p.Y" />
         <ApexPointSeries TItem="XYPoint"
                          Items="_pts35"
-                         Name="W35 Punkte"
+                         Name="@(_hasPMin ? "PMax W35 Punkte" : "W35 Punkte")"
                          SeriesType="SeriesType.Scatter"
                          XValue="p => p.X"
                          YValue="p => p.Y" />
         <ApexPointSeries TItem="XYPoint"
                          Items="_eta55"
-                         Name="η W55"
+                         Name="@(_hasPMin ? "η PMax W55" : "η W55")"
                          SeriesType="SeriesType.Line"
                          XValue="p => p.X"
                          YValue="p => p.Y" />
         <ApexPointSeries TItem="XYPoint"
                          Items="_pts55"
-                         Name="W55 Punkte"
+                         Name="@(_hasPMin ? "PMax W55 Punkte" : "W55 Punkte")"
                          SeriesType="SeriesType.Scatter"
                          XValue="p => p.X"
                          YValue="p => p.Y" />
+        @if (_hasPMin)
+        {
+            <ApexPointSeries TItem="XYPoint"
+                             Items="_etaPMin35"
+                             Name="η PMin W35"
+                             SeriesType="SeriesType.Line"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+            <ApexPointSeries TItem="XYPoint"
+                             Items="_ptsPMin35"
+                             Name="PMin W35 Punkte"
+                             SeriesType="SeriesType.Scatter"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+            <ApexPointSeries TItem="XYPoint"
+                             Items="_etaPMin55"
+                             Name="η PMin W55"
+                             SeriesType="SeriesType.Line"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+            <ApexPointSeries TItem="XYPoint"
+                             Items="_ptsPMin55"
+                             Name="PMin W55 Punkte"
+                             SeriesType="SeriesType.Scatter"
+                             XValue="p => p.X"
+                             YValue="p => p.Y" />
+        }
     </ApexChart>
 }
 
@@ -39,6 +66,11 @@
     private List<XYPoint> _eta55 = [];
     private List<XYPoint> _pts35 = [];
     private List<XYPoint> _pts55 = [];
+    private List<XYPoint> _etaPMin35 = [];
+    private List<XYPoint> _etaPMin55 = [];
+    private List<XYPoint> _ptsPMin35 = [];
+    private List<XYPoint> _ptsPMin55 = [];
+    private bool _hasPMin;
     private bool _dataChanged;
     private SimulationResult? _prev;
 
@@ -47,31 +79,68 @@
         if (Result == null || Result == _prev) return;
         _prev = Result;
         var r = Result;
+        _hasPMin = r.HasPMinCop;
 
         _eta35 = []; _eta55 = [];
+        _etaPMin35 = []; _etaPMin55 = [];
         for (int i = 0; i < r.LookupTemperatures.Length; i += 5)
         {
             _eta35.Add(new XYPoint(r.LookupTemperatures[i], r.EtaAtVL35[i]));
             _eta55.Add(new XYPoint(r.LookupTemperatures[i], r.EtaAtVL55[i]));
+            if (_hasPMin)
+            {
+                _etaPMin35.Add(new XYPoint(r.LookupTemperatures[i], r.EtaPMinAtVL35[i]));
+                _etaPMin55.Add(new XYPoint(r.LookupTemperatures[i], r.EtaPMinAtVL55[i]));
+            }
         }
 
         _pts35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10)
             .Select(p => new XYPoint(p[1], p[2] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
         _pts55 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 55) < 10)
             .Select(p => new XYPoint(p[1], p[2] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
-
-        _options = new ApexChartOptions<XYPoint>
+        if (_hasPMin)
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
-            Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
-            Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
-            Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(2); }" } }],
-            Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f"],
-            Stroke = new Stroke { Width = new List<double> { 2, 0, 2, 0 } },
-            Markers = new Markers { Size = new List<double> { 0, 6, 0, 6 } },
-            Legend = new Legend { Position = LegendPosition.Bottom },
-            Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2); }" } }
-        };
+            _ptsPMin35 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 35) < 10)
+                .Select(p => new XYPoint(p[1], p[3] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
+            _ptsPMin55 = r.RawCopPoints.Where(p => Math.Abs(p[0] - 55) < 10)
+                .Select(p => new XYPoint(p[1], p[3] / MathHelpers.GetCarnotCop(p[1], p[0]))).ToList();
+        }
+
+        if (_hasPMin)
+        {
+            _options = new ApexChartOptions<XYPoint>
+            {
+                Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
+                Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
+                Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+                Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(2); }" } }],
+                Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f", "#86efac", "#4ade80", "#93c5fd", "#60a5fa"],
+                Stroke = new Stroke
+                {
+                    Width = new List<double> { 2, 0, 2, 0, 2, 0, 2, 0 },
+                    DashArray = new List<double> { 0, 0, 0, 0, 6, 0, 6, 0 }
+                },
+                Markers = new Markers { Size = new List<double> { 0, 6, 0, 6, 0, 5, 0, 5 } },
+                Legend = new Legend { Position = LegendPosition.Bottom },
+                Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2); }" } }
+            };
+        }
+        else
+        {
+            _options = new ApexChartOptions<XYPoint>
+            {
+                Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
+                Title = new Title { Text = "Kennlinien Check: Gütegrad (η)" },
+                Xaxis = new XAxis { Title = new AxisTitle { Text = "Außentemperatur (°C)" } },
+                Yaxis = [new YAxis { Title = new AxisTitle { Text = "η" }, Min = 0.2m, Max = 0.7m, Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(2); }" } }],
+                Colors = ["#16a34a", "#14532d", "#2563eb", "#1e3a5f"],
+                Stroke = new Stroke { Width = new List<double> { 2, 0, 2, 0 } },
+                Markers = new Markers { Size = new List<double> { 0, 6, 0, 6 } },
+                Legend = new Legend { Position = LegendPosition.Bottom },
+                Tooltip = new Tooltip { Enabled = true, Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2); }" } }
+            };
+        }
+
         _dataChanged = true;
     }
 
