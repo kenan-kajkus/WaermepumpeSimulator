@@ -177,20 +177,22 @@
                 <InputFile OnChange="OnLoadKennfeld" accept=".json" class="hidden" />
             </label>
         </div>
-        <div class="text-xs text-gray-500 mb-2">Format: Temp,Wert (Neue Zeile für neuen Punkt)</div>
-        <div class="input-group">
-            <label class="input-label">Max Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
-            <span class="tooltip">Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen.</span>
-            <textarea @bind="Params.RawPMax" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.VPMax ? "!border-red-400" : Validation.WPMaxNegative ? "!border-orange-400" : "")" rows="3"></textarea>
-            @if (Validation.VPMax) { <span class="text-[10px] text-red-500">Mind. 2 Datenpunkte (Temp, kW)</span> }
-            else if (Validation.WPMaxNegative) { <span class="text-[10px] text-orange-500">Leistungswerte sollten &gt; 0 kW sein</span> }
-        </div>
-        <div class="input-group">
-            <label class="input-label">Min Leistung (kW) <i class="fas fa-circle-question help-icon"></i></label>
-            <span class="tooltip">Unterste Modulationsgrenze. Leer = Auto (25% von Max).</span>
-            <textarea @bind="Params.RawPMin" @bind:after="HandleParamChanged" @oninput="HandleResetPreset" class="input-field h-20 @(Validation.WPMinExceedsPMax ? "!border-orange-400" : "")" rows="3" placeholder="-7, 2.0&#10;2, 1.5&#10;7, 1.2"></textarea>
-            @if (Validation.WPMinExceedsPMax) { <span class="text-[10px] text-orange-500">PMin überschreitet PMax – Taktberechnung ungenau</span> }
-        </div>
+        <PowerEditor Value="@Params.RawPMax"
+                     ValueChanged="HandlePMaxChanged"
+                     OnInput="HandleResetPreset"
+                     Label="Max Leistung (kW)"
+                     Tooltip="Die maximale Heizleistung der WP bei verschiedenen Außentemperaturen."
+                     HasError="Validation.VPMax"
+                     HasWarning="Validation.WPMaxNegative"
+                     ErrorText="@(Validation.VPMax ? "Mind. 2 Datenpunkte (Temp, kW)" : null)"
+                     WarningText="@(Validation.WPMaxNegative ? "Leistungswerte sollten > 0 kW sein" : null)" />
+        <PowerEditor Value="@Params.RawPMin"
+                     ValueChanged="HandlePMinChanged"
+                     OnInput="HandleResetPreset"
+                     Label="Min Leistung (kW)"
+                     Tooltip="Unterste Modulationsgrenze. Leer = Auto (25% von Max)."
+                     HasWarning="Validation.WPMinExceedsPMax"
+                     WarningText="@(Validation.WPMinExceedsPMax ? "PMin überschreitet PMax – Taktberechnung ungenau" : null)" />
         <CopKennfeldEditor Value="@Params.RawCopData"
                            ValueChanged="HandleCopDataChanged"
                            OnInput="HandleResetPreset"
@@ -234,6 +236,20 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private async Task HandleParamChanged() => await OnParamChanged.InvokeAsync();
+
+    private async Task HandlePMaxChanged(string value)
+    {
+        Params.RawPMax = value;
+        await OnResetPreset.InvokeAsync();
+        await OnParamChanged.InvokeAsync();
+    }
+
+    private async Task HandlePMinChanged(string value)
+    {
+        Params.RawPMin = value;
+        await OnResetPreset.InvokeAsync();
+        await OnParamChanged.InvokeAsync();
+    }
 
     private async Task HandleCopDataChanged(string value)
     {

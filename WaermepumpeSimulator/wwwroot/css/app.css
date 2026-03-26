@@ -29,6 +29,13 @@ body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
 
 textarea.input-field { resize: vertical; font-family: monospace; font-size: 0.75rem; }
 
+.cop-cell {
+    width: 100%; padding: 0.2rem 0.25rem;
+    border: 1px solid #d1d5db; border-radius: 0.25rem;
+    font-size: 0.7rem; font-family: monospace; text-align: right; box-sizing: border-box;
+}
+.cop-cell:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+
 @media print {
     header, aside, .no-print, .fixed.bg-black\/50 { display: none !important; }
     .flex.flex-1.overflow-hidden { display: block !important; }

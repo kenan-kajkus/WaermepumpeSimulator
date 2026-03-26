@@ -52,24 +52,6 @@
     </button>
 </div>
 
-<style>
-    .cop-cell {
-        width: 100%;
-        padding: 0.2rem 0.25rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.25rem;
-        font-size: 0.7rem;
-        font-family: monospace;
-        text-align: right;
-        box-sizing: border-box;
-    }
-    .cop-cell:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 1px #3b82f6;
-    }
-</style>
-
 @code {
     [Parameter] public string Value { get; set; } = "";
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
