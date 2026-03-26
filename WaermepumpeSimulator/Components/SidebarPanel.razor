@@ -192,7 +192,8 @@
                      Label="Min Leistung (kW)"
                      Tooltip="Unterste Modulationsgrenze. Leer = Auto (25% von Max)."
                      HasWarning="Validation.WPMinExceedsPMax"
-                     WarningText="@(Validation.WPMinExceedsPMax ? "PMin überschreitet PMax – Taktberechnung ungenau" : null)" />
+                     WarningText="@(Validation.WPMinExceedsPMax ? "PMin überschreitet PMax – Taktberechnung ungenau" : null)"
+                     ShowAutoHint="@(string.IsNullOrWhiteSpace(Params.RawPMin))" />
         <CopKennfeldEditor Value="@Params.RawCopData"
                            ValueChanged="HandleCopDataChanged"
                            OnInput="HandleResetPreset"
@@ -200,7 +201,7 @@
                            HasWarning="Validation.WCopRange" />
     </div>
 
-    <div class="flex gap-2">
+    <div class="flex gap-2 mb-2">
         <button @onclick="OnUndo" disabled="@(UndoCount == 0)" class="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:pointer-events-none text-gray-500 hover:text-gray-700 text-xs py-2 px-3 rounded border border-gray-300 transition flex items-center justify-center gap-1" title="Rückgängig">
             <i class="fas fa-rotate-left"></i> Undo (@UndoCount)
         </button>

@@ -1,62 +1,84 @@
-@* Structured COP Kennfeld editor with sorted rows and tab-to-add *@
+@* Structured COP Kennfeld editor with sorted rows, tab-to-add, collapsible, VL chips *@
 
 <div class="input-group">
-    <label class="input-label">COP Kennfeld <i class="fas fa-circle-question help-icon"></i></label>
+    <div class="flex items-center cursor-pointer select-none" @onclick="() => _collapsed = !_collapsed">
+        <i class="fas @(_collapsed ? "fa-chevron-right" : "fa-chevron-down") text-[10px] text-gray-400 mr-1.5 w-3"></i>
+        <label class="input-label mb-0 cursor-pointer">COP Kennfeld</label>
+        <span class="ml-1.5 text-[10px] text-gray-400 font-normal">(@DataRowCount)</span>
+        <i class="fas fa-circle-question help-icon"></i>
+    </div>
     <span class="tooltip">COP-Daten der Wärmepumpe.<br>VL = Vorlauftemperatur, AT = Außentemperatur.<br>COP PMin ist optional – wenn leer, gilt COP für alle Leistungsstufen.</span>
 
-    @if (HasError)
+    @if (!_collapsed)
     {
-        <span class="text-[10px] text-red-500 mb-1 block">Mind. 2 COP-Datenpunkte</span>
-    }
-    else if (HasWarning)
-    {
-        <span class="text-[10px] text-orange-500 mb-1 block">COP-Werte sollten zwischen 0.5 und 15 liegen</span>
-    }
+        @if (HasError)
+        {
+            <span class="text-[10px] text-red-500 mb-1 block mt-1">Mind. 2 COP-Datenpunkte</span>
+        }
+        else if (HasWarning)
+        {
+            <span class="text-[10px] text-orange-500 mb-1 block mt-1">COP-Werte sollten zwischen 0.5 und 15 liegen</span>
+        }
 
-    <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
-        <span>VL</span>
-        <span>AT</span>
-        <span>COP</span>
-        <span>COP min</span>
-        <span></span>
-    </div>
-
-    @for (int idx = 0; idx < _rows.Count; idx++)
-    {
-        var i = idx;
-        var empty = IsRowEmpty(_rows[i]);
-        <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
-            <input type="text" inputmode="decimal" value="@_rows[i].VL"
-                   @onchange="e => OnFieldChanged(i, 0, e)"
-                   @oninput="OnInput"
-                   placeholder="@(empty ? "VL" : "")"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
-            <input type="text" inputmode="decimal" value="@_rows[i].AT"
-                   @onchange="e => OnFieldChanged(i, 1, e)"
-                   @oninput="OnInput"
-                   placeholder="@(empty ? "AT" : "")"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
-            <input type="text" inputmode="decimal" value="@_rows[i].CopPMax"
-                   @onchange="e => OnFieldChanged(i, 2, e)"
-                   @oninput="OnInput"
-                   placeholder="@(empty ? "COP" : "")"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
-            <input type="text" inputmode="decimal" value="@_rows[i].CopPMin"
-                   @onchange="e => OnFieldChanged(i, 3, e)"
-                   @oninput="OnInput"
-                   placeholder="—"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "")" />
-            @if (!empty)
+        <!-- VL quick-select chips -->
+        <div class="flex items-center gap-1 mt-1 mb-1.5">
+            <span class="text-[10px] text-gray-400">VL Zeile:</span>
+            @foreach (var vl in _vlPresets)
             {
-                <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
-                    <i class="fas fa-xmark"></i>
+                var v = vl;
+                <button tabindex="-1" @onclick="() => AddRowWithVL(v)"
+                        class="text-[10px] px-2 py-0.5 rounded-full border transition
+                               @(HasVL(v) ? "bg-blue-100 border-blue-300 text-blue-700" : "bg-gray-50 border-gray-300 text-gray-500 hover:bg-blue-50 hover:border-blue-200")">
+                    W@(v)
                 </button>
             }
-            else
-            {
-                <span></span>
-            }
         </div>
+
+        <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
+            <span>VL</span>
+            <span>AT</span>
+            <span>COP</span>
+            <span>COP min</span>
+            <span></span>
+        </div>
+
+        @for (int idx = 0; idx < _rows.Count; idx++)
+        {
+            var i = idx;
+            var empty = IsRowEmpty(_rows[i]);
+            <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
+                <input type="text" inputmode="decimal" value="@_rows[i].VL"
+                       @onchange="e => OnFieldChanged(i, 0, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "VL" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                <input type="text" inputmode="decimal" value="@_rows[i].AT"
+                       @onchange="e => OnFieldChanged(i, 1, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "AT" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                <input type="text" inputmode="decimal" value="@_rows[i].CopPMax"
+                       @onchange="e => OnFieldChanged(i, 2, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "COP" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                <input type="text" inputmode="decimal" value="@_rows[i].CopPMin"
+                       @onchange="e => OnFieldChanged(i, 3, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "COP min" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "")" />
+                @if (!empty)
+                {
+                    <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                }
+                else
+                {
+                    <span></span>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -69,6 +91,12 @@
 
     private List<CopRow> _rows = [];
     private string? _lastSerialized;
+    private bool _collapsed;
+    private static readonly string[] _vlPresets = ["35", "55"];
+
+    private int DataRowCount => _rows.Count(r => !IsRowEmpty(r));
+
+    private bool HasVL(string vl) => _rows.Any(r => !IsRowEmpty(r) && r.VL == vl);
 
     private class CopRow
     {
@@ -170,6 +198,14 @@
             case 2: _rows[row].CopPMax = val; break;
             case 3: _rows[row].CopPMin = val; break;
         }
+        await EmitChange();
+    }
+
+    private async Task AddRowWithVL(string vl)
+    {
+        // Insert before sentinel
+        int insertIdx = _rows.Count > 0 && IsRowEmpty(_rows[^1]) ? _rows.Count - 1 : _rows.Count;
+        _rows.Insert(insertIdx, new CopRow { VL = vl });
         await EmitChange();
     }
 

@@ -1,50 +1,63 @@
-@* Structured power data editor with sorted rows and tab-to-add *@
+@* Structured power data editor with sorted rows, tab-to-add, collapsible *@
 
 <div class="input-group">
-    <label class="input-label">@Label <i class="fas fa-circle-question help-icon"></i></label>
+    <div class="flex items-center cursor-pointer select-none" @onclick="() => _collapsed = !_collapsed">
+        <i class="fas @(_collapsed ? "fa-chevron-right" : "fa-chevron-down") text-[10px] text-gray-400 mr-1.5 w-3"></i>
+        <label class="input-label mb-0 cursor-pointer">@Label</label>
+        <span class="ml-1.5 text-[10px] text-gray-400 font-normal">(@DataRowCount)</span>
+        <i class="fas fa-circle-question help-icon"></i>
+    </div>
     <span class="tooltip">@((MarkupString)Tooltip)</span>
 
-    @if (!string.IsNullOrEmpty(ErrorText))
+    @if (!_collapsed)
     {
-        <span class="text-[10px] text-red-500 mb-1 block">@ErrorText</span>
-    }
-    else if (!string.IsNullOrEmpty(WarningText))
-    {
-        <span class="text-[10px] text-orange-500 mb-1 block">@WarningText</span>
-    }
+        @if (!string.IsNullOrEmpty(ErrorText))
+        {
+            <span class="text-[10px] text-red-500 mb-1 block mt-1">@ErrorText</span>
+        }
+        else if (!string.IsNullOrEmpty(WarningText))
+        {
+            <span class="text-[10px] text-orange-500 mb-1 block mt-1">@WarningText</span>
+        }
 
-    <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
-        <span>AT (°C)</span>
-        <span>kW</span>
-        <span></span>
-    </div>
-
-    @for (int idx = 0; idx < _rows.Count; idx++)
-    {
-        var i = idx;
-        var empty = IsRowEmpty(_rows[i]);
-        <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
-            <input type="text" inputmode="decimal" value="@_rows[i].Temp"
-                   @onchange="e => OnFieldChanged(i, 0, e)"
-                   @oninput="OnInput"
-                   placeholder="@(empty ? "°C" : "")"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
-            <input type="text" inputmode="decimal" value="@_rows[i].Value"
-                   @onchange="e => OnFieldChanged(i, 1, e)"
-                   @oninput="OnInput"
-                   placeholder="@(empty ? "kW" : "")"
-                   class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
-            @if (!empty)
-            {
-                <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
-                    <i class="fas fa-xmark"></i>
-                </button>
-            }
-            else
-            {
-                <span></span>
-            }
+        <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5 mt-1">
+            <span>AT (°C)</span>
+            <span>kW</span>
+            <span></span>
         </div>
+
+        @for (int idx = 0; idx < _rows.Count; idx++)
+        {
+            var i = idx;
+            var empty = IsRowEmpty(_rows[i]);
+            <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
+                <input type="text" inputmode="decimal" value="@_rows[i].Temp"
+                       @onchange="e => OnFieldChanged(i, 0, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "°C" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                <input type="text" inputmode="decimal" value="@_rows[i].Value"
+                       @onchange="e => OnFieldChanged(i, 1, e)"
+                       @oninput="OnInput"
+                       placeholder="@(empty ? "kW" : "")"
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                @if (!empty)
+                {
+                    <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                }
+                else
+                {
+                    <span></span>
+                }
+            </div>
+        }
+
+        @if (ShowAutoHint)
+        {
+            <div class="text-[10px] text-gray-400 italic mt-1">Auto: 25% von PMax</div>
+        }
     }
 </div>
 
@@ -58,9 +71,13 @@
     [Parameter] public bool HasWarning { get; set; }
     [Parameter] public string? ErrorText { get; set; }
     [Parameter] public string? WarningText { get; set; }
+    [Parameter] public bool ShowAutoHint { get; set; }
 
     private List<PowerRow> _rows = [];
     private string? _lastSerialized;
+    private bool _collapsed;
+
+    private int DataRowCount => _rows.Count(r => !IsRowEmpty(r));
 
     private class PowerRow
     {
@@ -93,7 +110,6 @@
             if (parts.Length >= 2)
             {
                 var row = new PowerRow { Temp = parts[0].Trim(), Value = parts[1].Trim() };
-                // Deduplicate: last value for a given temperature wins
                 if (double.TryParse(row.Temp, System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out var temp))
                 {
@@ -152,7 +168,6 @@
         if (field == 0) _rows[row].Temp = val;
         else _rows[row].Value = val;
 
-        // Enforce unique temperatures: if another row has the same temp, remove it
         if (field == 0 && double.TryParse(val, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var newTemp))
         {
