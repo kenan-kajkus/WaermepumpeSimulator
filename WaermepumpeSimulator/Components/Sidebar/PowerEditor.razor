@@ -84,6 +84,7 @@
 
     private static List<PowerRow> ParseRows(string text)
     {
+        var seen = new Dictionary<double, int>();
         var rows = new List<PowerRow>();
         if (string.IsNullOrWhiteSpace(text)) return rows;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
@@ -91,11 +92,19 @@
             var parts = line.Split(',');
             if (parts.Length >= 2)
             {
-                rows.Add(new PowerRow
+                var row = new PowerRow { Temp = parts[0].Trim(), Value = parts[1].Trim() };
+                // Deduplicate: last value for a given temperature wins
+                if (double.TryParse(row.Temp, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var temp))
                 {
-                    Temp = parts[0].Trim(),
-                    Value = parts[1].Trim()
-                });
+                    if (seen.TryGetValue(temp, out var existingIdx))
+                    {
+                        rows[existingIdx] = row;
+                        continue;
+                    }
+                    seen[temp] = rows.Count;
+                }
+                rows.Add(row);
             }
         }
         return rows;
@@ -142,6 +151,25 @@
         var val = e.Value?.ToString() ?? "";
         if (field == 0) _rows[row].Temp = val;
         else _rows[row].Value = val;
+
+        // Enforce unique temperatures: if another row has the same temp, remove it
+        if (field == 0 && double.TryParse(val, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var newTemp))
+        {
+            for (int j = _rows.Count - 1; j >= 0; j--)
+            {
+                if (j == row || IsRowEmpty(_rows[j])) continue;
+                if (double.TryParse(_rows[j].Temp, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var existingTemp)
+                    && Math.Abs(existingTemp - newTemp) < 0.001)
+                {
+                    _rows.RemoveAt(j);
+                    if (j < row) row--;
+                    break;
+                }
+            }
+        }
+
         await EmitChange();
     }
 
