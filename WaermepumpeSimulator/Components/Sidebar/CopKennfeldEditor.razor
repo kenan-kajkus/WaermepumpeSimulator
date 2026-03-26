@@ -1,0 +1,171 @@
+@* Structured COP Kennfeld editor — replaces raw textarea with individual fields per row *@
+
+<div class="input-group">
+    <label class="input-label">COP Kennfeld <i class="fas fa-circle-question help-icon"></i></label>
+    <span class="tooltip">COP-Daten der Wärmepumpe.<br>VL = Vorlauftemperatur, AT = Außentemperatur.<br>COP PMin ist optional – wenn leer, gilt COP für alle Leistungsstufen.</span>
+
+    @if (HasError)
+    {
+        <span class="text-[10px] text-red-500 mb-1 block">Mind. 2 COP-Datenpunkte</span>
+    }
+    else if (HasWarning)
+    {
+        <span class="text-[10px] text-orange-500 mb-1 block">COP-Werte sollten zwischen 0.5 und 15 liegen</span>
+    }
+
+    <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
+        <span>VL</span>
+        <span>AT</span>
+        <span>COP</span>
+        <span>COP min</span>
+        <span></span>
+    </div>
+
+    @for (int idx = 0; idx < _rows.Count; idx++)
+    {
+        var i = idx;
+        <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
+            <input type="text" inputmode="decimal" value="@_rows[i].VL"
+                   @onchange="e => OnFieldChanged(i, 0, e)"
+                   @oninput="OnInput"
+                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+            <input type="text" inputmode="decimal" value="@_rows[i].AT"
+                   @onchange="e => OnFieldChanged(i, 1, e)"
+                   @oninput="OnInput"
+                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+            <input type="text" inputmode="decimal" value="@_rows[i].CopPMax"
+                   @onchange="e => OnFieldChanged(i, 2, e)"
+                   @oninput="OnInput"
+                   class="cop-cell @(HasError ? "!border-red-400" : HasWarning ? "!border-orange-400" : "")" />
+            <input type="text" inputmode="decimal" value="@_rows[i].CopPMin"
+                   @onchange="e => OnFieldChanged(i, 3, e)"
+                   @oninput="OnInput"
+                   class="cop-cell" placeholder="—" />
+            <button @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+    }
+
+    <button @onclick="AddRow" class="w-full mt-1 bg-gray-50 hover:bg-gray-100 text-gray-500 text-[10px] py-1 rounded border border-dashed border-gray-300 flex items-center justify-center gap-1">
+        <i class="fas fa-plus text-[8px]"></i> Zeile
+    </button>
+</div>
+
+<style>
+    .cop-cell {
+        width: 100%;
+        padding: 0.2rem 0.25rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.25rem;
+        font-size: 0.7rem;
+        font-family: monospace;
+        text-align: right;
+        box-sizing: border-box;
+    }
+    .cop-cell:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 1px #3b82f6;
+    }
+</style>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public EventCallback OnInput { get; set; }
+    [Parameter] public bool HasError { get; set; }
+    [Parameter] public bool HasWarning { get; set; }
+
+    private List<CopRow> _rows = [];
+    private string? _lastSerialized;
+
+    private class CopRow
+    {
+        public string VL { get; set; } = "";
+        public string AT { get; set; } = "";
+        public string CopPMax { get; set; } = "";
+        public string CopPMin { get; set; } = "";
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Only re-parse if the value changed externally (preset, import, undo)
+        if (Value != _lastSerialized)
+        {
+            _rows = ParseRows(Value);
+            _lastSerialized = Value;
+        }
+    }
+
+    private static List<CopRow> ParseRows(string text)
+    {
+        var rows = new List<CopRow>();
+        if (string.IsNullOrWhiteSpace(text)) return rows;
+        foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split(',');
+            if (parts.Length >= 3)
+            {
+                rows.Add(new CopRow
+                {
+                    VL = parts[0].Trim(),
+                    AT = parts[1].Trim(),
+                    CopPMax = parts[2].Trim(),
+                    CopPMin = parts.Length >= 4 ? parts[3].Trim() : ""
+                });
+            }
+        }
+        return rows;
+    }
+
+    private string Serialize()
+    {
+        var lines = _rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.VL) || !string.IsNullOrWhiteSpace(r.AT) || !string.IsNullOrWhiteSpace(r.CopPMax))
+            .Select(r =>
+            {
+                var line = $"{r.VL}, {r.AT}, {r.CopPMax}";
+                if (!string.IsNullOrWhiteSpace(r.CopPMin))
+                    line += $", {r.CopPMin}";
+                return line;
+            });
+        return string.Join("\n", lines);
+    }
+
+    private async Task EmitChange()
+    {
+        _lastSerialized = Serialize();
+        await ValueChanged.InvokeAsync(_lastSerialized);
+    }
+
+    private async Task OnFieldChanged(int row, int field, ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        switch (field)
+        {
+            case 0: _rows[row].VL = val; break;
+            case 1: _rows[row].AT = val; break;
+            case 2: _rows[row].CopPMax = val; break;
+            case 3: _rows[row].CopPMin = val; break;
+        }
+        await EmitChange();
+    }
+
+    private async Task AddRow()
+    {
+        // Default VL based on existing rows
+        string defaultVL = _rows.Count > 0 ? _rows[^1].VL : "35";
+        _rows.Add(new CopRow { VL = defaultVL, AT = "", CopPMax = "", CopPMin = "" });
+        await EmitChange();
+    }
+
+    private async Task RemoveRow(int index)
+    {
+        if (_rows.Count > 0)
+        {
+            _rows.RemoveAt(index);
+            await EmitChange();
+        }
+    }
+}
