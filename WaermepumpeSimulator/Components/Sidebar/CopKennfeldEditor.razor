@@ -1,4 +1,4 @@
-@* Structured COP Kennfeld editor with sorted rows, tab-to-add, collapsible, VL chips *@
+@* Structured COP Kennfeld editor with tab-to-add, collapsible, VL chips, manual reorder *@
 
 <div class="input-group">
     <div class="flex items-center cursor-pointer select-none" @onclick="() => _collapsed = !_collapsed">
@@ -34,11 +34,12 @@
             }
         </div>
 
-        <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
+        <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.5rem_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5">
             <span>VL</span>
             <span>AT</span>
             <span>COP</span>
             <span>COP min</span>
+            <span></span>
             <span></span>
         </div>
 
@@ -46,7 +47,7 @@
         {
             var i = idx;
             var empty = IsRowEmpty(_rows[i]);
-            <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
+            <div class="grid grid-cols-[3rem_3rem_1fr_1fr_1.5rem_1.25rem] gap-0.5 items-center mb-0.5">
                 <input type="text" inputmode="decimal" value="@_rows[i].VL"
                        @onchange="e => OnFieldChanged(i, 0, e)"
                        @oninput="OnInput"
@@ -69,12 +70,21 @@
                        class="cop-cell @(empty ? "cop-cell-empty" : "")" />
                 @if (!empty)
                 {
+                    <div class="flex flex-col items-center leading-none">
+                        <button tabindex="-1" @onclick="() => MoveRow(i, -1)" disabled="@(i == 0)" class="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:pointer-events-none text-[8px]" title="Nach oben">
+                            <i class="fas fa-caret-up"></i>
+                        </button>
+                        <button tabindex="-1" @onclick="() => MoveRow(i, 1)" disabled="@(i >= _rows.Count - 2)" class="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:pointer-events-none text-[8px]" title="Nach unten">
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                    </div>
                     <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
                         <i class="fas fa-xmark"></i>
                     </button>
                 }
                 else
                 {
+                    <span></span>
                     <span></span>
                 }
             </div>
@@ -115,7 +125,6 @@
         if (Value != _lastSerialized)
         {
             _rows = ParseRows(Value);
-            SortRows();
             EnsureSentinel();
             _lastSerialized = Value;
         }
@@ -142,16 +151,6 @@
         return rows;
     }
 
-    private void SortRows()
-    {
-        var ic = System.Globalization.CultureInfo.InvariantCulture;
-        _rows = _rows
-            .Where(r => !IsRowEmpty(r))
-            .OrderBy(r => double.TryParse(r.VL, System.Globalization.NumberStyles.Float, ic, out var v) ? v : double.MaxValue)
-            .ThenBy(r => double.TryParse(r.AT, System.Globalization.NumberStyles.Float, ic, out var v) ? v : double.MaxValue)
-            .ToList();
-    }
-
     private void EnsureSentinel()
     {
         if (_rows.Count == 0 || !IsRowEmpty(_rows[^1]))
@@ -160,19 +159,7 @@
 
     private string Serialize()
     {
-        var ic = System.Globalization.CultureInfo.InvariantCulture;
-        var dataRows = _rows.Where(r => !IsRowEmpty(r)).ToList();
-        dataRows.Sort((a, b) =>
-        {
-            double.TryParse(a.VL, System.Globalization.NumberStyles.Float, ic, out var avl);
-            double.TryParse(b.VL, System.Globalization.NumberStyles.Float, ic, out var bvl);
-            int cmp = avl.CompareTo(bvl);
-            if (cmp != 0) return cmp;
-            double.TryParse(a.AT, System.Globalization.NumberStyles.Float, ic, out var aat);
-            double.TryParse(b.AT, System.Globalization.NumberStyles.Float, ic, out var bat);
-            return aat.CompareTo(bat);
-        });
-        return string.Join("\n", dataRows.Select(r =>
+        return string.Join("\n", _rows.Where(r => !IsRowEmpty(r)).Select(r =>
         {
             var line = $"{r.VL}, {r.AT}, {r.CopPMax}";
             if (!string.IsNullOrWhiteSpace(r.CopPMin))
@@ -203,9 +190,17 @@
 
     private async Task AddRowWithVL(string vl)
     {
-        // Insert before sentinel
         int insertIdx = _rows.Count > 0 && IsRowEmpty(_rows[^1]) ? _rows.Count - 1 : _rows.Count;
         _rows.Insert(insertIdx, new CopRow { VL = vl });
+        await EmitChange();
+    }
+
+    private async Task MoveRow(int index, int direction)
+    {
+        int target = index + direction;
+        if (target < 0 || target >= _rows.Count) return;
+        if (IsRowEmpty(_rows[target])) return;
+        (_rows[index], _rows[target]) = (_rows[target], _rows[index]);
         await EmitChange();
     }
 

@@ -1,4 +1,4 @@
-@* Structured power data editor with sorted rows, tab-to-add, collapsible *@
+@* Structured power data editor with tab-to-add, collapsible, manual reorder *@
 
 <div class="input-group">
     <div class="flex items-center cursor-pointer select-none" @onclick="() => _collapsed = !_collapsed">
@@ -19,10 +19,15 @@
         {
             <span class="text-[10px] text-orange-500 mb-1 block mt-1">@WarningText</span>
         }
+        else if (_hasDuplicates)
+        {
+            <span class="text-[10px] text-orange-500 mb-1 block mt-1">Doppelte Temperaturen vorhanden</span>
+        }
 
-        <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5 mt-1">
+        <div class="grid grid-cols-[1fr_1fr_1.5rem_1.25rem] gap-0.5 items-center text-[10px] font-semibold text-gray-500 mb-0.5 mt-1">
             <span>AT (°C)</span>
             <span>kW</span>
+            <span></span>
             <span></span>
         </div>
 
@@ -30,12 +35,13 @@
         {
             var i = idx;
             var empty = IsRowEmpty(_rows[i]);
-            <div class="grid grid-cols-[1fr_1fr_1.25rem] gap-0.5 items-center mb-0.5">
+            var isDup = !empty && IsDuplicate(i);
+            <div class="grid grid-cols-[1fr_1fr_1.5rem_1.25rem] gap-0.5 items-center mb-0.5">
                 <input type="text" inputmode="decimal" value="@_rows[i].Temp"
                        @onchange="e => OnFieldChanged(i, 0, e)"
                        @oninput="OnInput"
                        placeholder="@(empty ? "°C" : "")"
-                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
+                       class="cop-cell @(empty ? "cop-cell-empty" : "") @(isDup ? "!border-orange-400" : !empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
                 <input type="text" inputmode="decimal" value="@_rows[i].Value"
                        @onchange="e => OnFieldChanged(i, 1, e)"
                        @oninput="OnInput"
@@ -43,12 +49,21 @@
                        class="cop-cell @(empty ? "cop-cell-empty" : "") @(!empty && HasError ? "!border-red-400" : !empty && HasWarning ? "!border-orange-400" : "")" />
                 @if (!empty)
                 {
+                    <div class="flex flex-col items-center leading-none">
+                        <button tabindex="-1" @onclick="() => MoveRow(i, -1)" disabled="@(i == 0)" class="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:pointer-events-none text-[8px]" title="Nach oben">
+                            <i class="fas fa-caret-up"></i>
+                        </button>
+                        <button tabindex="-1" @onclick="() => MoveRow(i, 1)" disabled="@(i >= _rows.Count - 2)" class="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:pointer-events-none text-[8px]" title="Nach unten">
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                    </div>
                     <button tabindex="-1" @onclick="() => RemoveRow(i)" class="text-gray-400 hover:text-red-500 text-xs leading-none" title="Zeile entfernen">
                         <i class="fas fa-xmark"></i>
                     </button>
                 }
                 else
                 {
+                    <span></span>
                     <span></span>
                 }
             </div>
@@ -76,6 +91,8 @@
     private List<PowerRow> _rows = [];
     private string? _lastSerialized;
     private bool _collapsed;
+    private bool _hasDuplicates;
+    private HashSet<int> _duplicateIndices = [];
 
     private int DataRowCount => _rows.Count(r => !IsRowEmpty(r));
 
@@ -88,51 +105,30 @@
     private static bool IsRowEmpty(PowerRow r)
         => string.IsNullOrWhiteSpace(r.Temp) && string.IsNullOrWhiteSpace(r.Value);
 
+    private bool IsDuplicate(int index) => _duplicateIndices.Contains(index);
+
     protected override void OnParametersSet()
     {
         if (Value != _lastSerialized)
         {
             _rows = ParseRows(Value);
-            SortRows();
             EnsureSentinel();
+            UpdateDuplicates();
             _lastSerialized = Value;
         }
     }
 
     private static List<PowerRow> ParseRows(string text)
     {
-        var seen = new Dictionary<double, int>();
         var rows = new List<PowerRow>();
         if (string.IsNullOrWhiteSpace(text)) return rows;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             var parts = line.Split(',');
             if (parts.Length >= 2)
-            {
-                var row = new PowerRow { Temp = parts[0].Trim(), Value = parts[1].Trim() };
-                if (double.TryParse(row.Temp, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out var temp))
-                {
-                    if (seen.TryGetValue(temp, out var existingIdx))
-                    {
-                        rows[existingIdx] = row;
-                        continue;
-                    }
-                    seen[temp] = rows.Count;
-                }
-                rows.Add(row);
-            }
+                rows.Add(new PowerRow { Temp = parts[0].Trim(), Value = parts[1].Trim() });
         }
         return rows;
-    }
-
-    private void SortRows()
-    {
-        _rows = _rows
-            .Where(r => !IsRowEmpty(r))
-            .OrderBy(r => double.TryParse(r.Temp, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : double.MaxValue)
-            .ToList();
     }
 
     private void EnsureSentinel()
@@ -141,23 +137,39 @@
             _rows.Add(new PowerRow());
     }
 
+    private void UpdateDuplicates()
+    {
+        _duplicateIndices = [];
+        var seen = new Dictionary<double, int>();
+        for (int i = 0; i < _rows.Count; i++)
+        {
+            if (IsRowEmpty(_rows[i])) continue;
+            if (double.TryParse(_rows[i].Temp, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var temp))
+            {
+                if (seen.TryGetValue(temp, out var prev))
+                {
+                    _duplicateIndices.Add(prev);
+                    _duplicateIndices.Add(i);
+                }
+                else
+                {
+                    seen[temp] = i;
+                }
+            }
+        }
+        _hasDuplicates = _duplicateIndices.Count > 0;
+    }
+
     private string Serialize()
     {
-        var dataRows = _rows.Where(r => !IsRowEmpty(r)).ToList();
-        dataRows.Sort((a, b) =>
-        {
-            double.TryParse(a.Temp, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var av);
-            double.TryParse(b.Temp, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var bv);
-            return av.CompareTo(bv);
-        });
-        return string.Join("\n", dataRows.Select(r => $"{r.Temp}, {r.Value}"));
+        return string.Join("\n", _rows.Where(r => !IsRowEmpty(r)).Select(r => $"{r.Temp}, {r.Value}"));
     }
 
     private async Task EmitChange()
     {
         EnsureSentinel();
+        UpdateDuplicates();
         _lastSerialized = Serialize();
         await ValueChanged.InvokeAsync(_lastSerialized);
     }
@@ -167,24 +179,16 @@
         var val = e.Value?.ToString() ?? "";
         if (field == 0) _rows[row].Temp = val;
         else _rows[row].Value = val;
+        await EmitChange();
+    }
 
-        if (field == 0 && double.TryParse(val, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var newTemp))
-        {
-            for (int j = _rows.Count - 1; j >= 0; j--)
-            {
-                if (j == row || IsRowEmpty(_rows[j])) continue;
-                if (double.TryParse(_rows[j].Temp, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out var existingTemp)
-                    && Math.Abs(existingTemp - newTemp) < 0.001)
-                {
-                    _rows.RemoveAt(j);
-                    if (j < row) row--;
-                    break;
-                }
-            }
-        }
-
+    private async Task MoveRow(int index, int direction)
+    {
+        int target = index + direction;
+        if (target < 0 || target >= _rows.Count) return;
+        // Don't swap with sentinel
+        if (IsRowEmpty(_rows[target])) return;
+        (_rows[index], _rows[target]) = (_rows[target], _rows[index]);
         await EmitChange();
     }
 
