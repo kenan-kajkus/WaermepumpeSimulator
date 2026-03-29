@@ -355,6 +355,7 @@ public partial class Home
         Params.RawPMax = preset.PMax;
         Params.RawPMin = preset.PMin ?? "";
         Params.RawCopData = preset.CopData;
+        if (preset.HeizstabMax.HasValue) Params.HeizstabMax = preset.HeizstabMax.Value;
         OnParamChanged();
     }
 
@@ -463,7 +464,8 @@ public partial class Home
             Group = "Eigene Modelle",
             PMax = Params.RawPMax,
             PMin = Params.RawPMin,
-            CopData = Params.RawCopData
+            CopData = Params.RawCopData,
+            HeizstabMax = Params.HeizstabMax
         };
         _customPresets.Add(preset);
         _selectedPreset = key;

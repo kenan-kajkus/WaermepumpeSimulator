@@ -19,9 +19,6 @@ public class SimulationParameters
     public double VorlaufMin { get; set; } = 30.5;
     public double WarmwasserTemp { get; set; } = 50;
 
-    // Heizstab
-    public double HeizstabMax { get; set; } = 9;
-
     // Nachtabsenkung
     public bool NachtabsenkungAktiv { get; set; } = false;
     public int NachtStart { get; set; } = 22;
@@ -32,6 +29,7 @@ public class SimulationParameters
     public string RawPMax { get; set; } = "-7, 6.8\n2, 7.0\n7, 7.0";
     public string RawPMin { get; set; } = "";
     public string RawCopData { get; set; } = "35, -7, 2.80\n35, 2, 3.41\n35, 7, 4.55\n55, -7, 2.13\n55, 2, 2.41\n55, 7, 3.03";
+    public double HeizstabMax { get; set; } = 9;
 
     // MemberwiseClone copies all fields — no risk of forgetting new properties.
     // Safe here because all fields are value types or immutable strings.

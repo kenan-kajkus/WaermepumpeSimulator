@@ -94,17 +94,6 @@
         </div>
     </div>
 
-    <!-- Heizstab -->
-    <div class="mb-6 p-3 bg-red-50 rounded border border-red-100">
-        <h3 class="font-bold text-gray-700 text-sm mb-2">Zusatzheizung</h3>
-        <div class="input-group">
-            <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
-            <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
-            <input type="number" @bind="Params.HeizstabMax" @bind:after="HandleParamChanged" class="input-field @(Validation.VHeizstab ? "!border-red-400" : "")" />
-            @if (Validation.VHeizstab) { <span class="text-[10px] text-red-500">Muss &ge; 0 sein</span> }
-        </div>
-    </div>
-
     <!-- Nachtabsenkung -->
     <div class="mb-6 p-3 bg-gray-50 rounded border border-gray-200">
         <div class="flex items-center justify-between mb-2">
@@ -199,6 +188,16 @@
                            OnInput="HandleResetPreset"
                            HasError="Validation.VCop"
                            HasWarning="Validation.WCopRange" />
+        <!-- Heizstab -->
+        <div class="mt-4 p-3 bg-red-50 rounded border border-red-100">
+            <h3 class="font-bold text-gray-700 text-sm mb-2">Zusatzheizung</h3>
+            <div class="input-group">
+                <label class="input-label">Heizstab Limit (kW) <i class="fas fa-circle-question help-icon"></i></label>
+                <span class="tooltip">Maximale Leistung des elektrischen Heizstabs.</span>
+                <input type="number" @bind="Params.HeizstabMax" @bind:after="HandleParamChanged" class="input-field @(Validation.VHeizstab ? "!border-red-400" : "")" />
+                @if (Validation.VHeizstab) { <span class="text-[10px] text-red-500">Muss &ge; 0 sein</span> }
+            </div>
+        </div>
     </div>
 
     <div class="flex gap-2 mb-2">
