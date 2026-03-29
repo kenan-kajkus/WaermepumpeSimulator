@@ -14,6 +14,33 @@
 
         <div class="bg-white rounded-lg shadow p-5 border-l-4 border-blue-500">
             <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-29</span>
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Neu</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Klimabirne &ndash; t,x-Diagramm</h3>
+            <p class="text-sm text-gray-600">Neues Diagramm im Abtau-Tab: Die Klimabirne stellt alle 8.760 Jahresstunden im Feuchteluftdiagramm (Temperatur vs. absolute Feuchte in g/kg) dar. Farbkodierung: Blau = Normalbetrieb, Orange = frostkritische Außenbedingungen (2&ndash;7&thinsp;&deg;C, RH&thinsp;&gt;&thinsp;85&thinsp;%), Rot = Vereisungsbedingungen am Verdampfer detektiert. Eine gestrichelte Grenzkurve zeigt die 85%-RH-Linie &uuml;ber den gesamten Temperaturbereich.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-29</span>
+                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-semibold">Verbesserung</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Erweitertes Vereisungsmodell &amp; Abtau-Statistiken</h3>
+            <p class="text-sm text-gray-600">Der frostkritische Außentemperaturbereich wurde gem&auml;&szlig; Literatur auf 2&ndash;7,5&thinsp;&deg;C erweitert (bisher &minus;4 bis +3&thinsp;&deg;C), die Luftfeuchte-Schwelle auf 85&thinsp;% gesenkt. Das Verdampfer-Modell wurde so angepasst, dass bei 7&thinsp;&deg;C Außentemperatur und Volllast der Verdampfer rechnerisch unter 0&thinsp;&deg;C liegt. Neu: <em>Frostkritische Stunden</em> (standortbasiert, unabh&auml;ngig von der WP) und Abtau-Statistiken (gesch&auml;tzte Zyklen, Abtaustunden, Abtauquote) werden in der Abtau-Kachel angezeigt. Literaturgrenzwert &lt;&thinsp;15&thinsp;% wird farblich hervorgehoben.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-orange-500">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-29</span>
+                <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-semibold">Fix</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">Schaltjahr-Korrektur in der Monatsauswertung</h3>
+            <p class="text-sm text-gray-600">Bei Auswahl eines Schaltjahrs (z.B. 2024, 8.784 Stunden) wurden bisher die letzten 24 Stunden (31. Dezember) abgeschnitten. Dadurch lag der 29. Februar noch im Datensatz und verschob alle Monatsgrenzen ab M&auml;rz um einen Tag. Die Normalisierung auf 8.760 Stunden entfernt jetzt stattdessen den 29. Februar, sodass die festen Monatsgrenzen in der Monatsauswertung korrekt bleiben.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-blue-500">
+            <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">2026-03-27</span>
                 <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Neu</span>
             </div>
