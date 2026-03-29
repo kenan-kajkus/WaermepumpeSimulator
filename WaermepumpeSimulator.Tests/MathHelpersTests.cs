@@ -128,6 +128,49 @@ public class MathHelpersTests
         Assert.False(double.IsInfinity(dewPoint));
     }
 
+    // CalculateAbsoluteHumidity / SaturationPressure
+
+    [Fact]
+    public void CalculateAbsoluteHumidity_At100Percent_IsPositive()
+    {
+        // At 20°C, 100% RH the absolute humidity is ~14.7 g/kg
+        var x = MathHelpers.CalculateAbsoluteHumidity(20.0, 100.0);
+        Assert.True(x > 0, "Absolute humidity must be positive");
+        Assert.InRange(x, 14.0, 16.0);
+    }
+
+    [Fact]
+    public void CalculateAbsoluteHumidity_HigherTempMoreHumidity()
+    {
+        // Same RH but higher temperature → more absolute humidity (warmer air holds more moisture)
+        var xLow = MathHelpers.CalculateAbsoluteHumidity(5.0, 85.0);
+        var xHigh = MathHelpers.CalculateAbsoluteHumidity(15.0, 85.0);
+        Assert.True(xHigh > xLow, "Warmer air at same RH should have higher absolute humidity");
+    }
+
+    [Fact]
+    public void CalculateAbsoluteHumidity_ZeroHumidity_ReturnsNearZero()
+    {
+        var x = MathHelpers.CalculateAbsoluteHumidity(20.0, 0.0);
+        // RH is clamped to 0.1% internally, giving ~0.014 g/kg at 20°C — close to zero but > 0
+        Assert.InRange(x, 0.0, 0.02);
+    }
+
+    [Fact]
+    public void SaturationPressure_At0Celsius_IsAbout611Pa()
+    {
+        // Standard value: p_s(0°C) ≈ 610.5–611 Pa
+        var ps = MathHelpers.SaturationPressure(0.0);
+        Assert.InRange(ps, 608.0, 614.0);
+    }
+
+    [Fact]
+    public void SaturationPressure_IncreasesWithTemperature()
+    {
+        Assert.True(MathHelpers.SaturationPressure(10.0) > MathHelpers.SaturationPressure(0.0));
+        Assert.True(MathHelpers.SaturationPressure(20.0) > MathHelpers.SaturationPressure(10.0));
+    }
+
     // GetCarnotCop
 
     [Fact]

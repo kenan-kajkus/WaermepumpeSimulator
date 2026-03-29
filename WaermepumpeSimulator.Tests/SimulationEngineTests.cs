@@ -411,6 +411,118 @@ public class SimulationEngineTests
         Assert.Equal(0, result.IcingHours);
     }
 
+    [Fact]
+    public void Run_ExtendedIcingRange_DetectsIcingAt6Celsius()
+    {
+        // 6°C is in the new 2–7°C frost-critical range.
+        // With Jahresverbrauch=80000 the building demand (≈8.7 kW) exceeds PMax (≈7 kW) → loadFactor=1.0
+        // → evap = 6 - (0.5 + 7.0×1.0) = -1.5°C < -0.5°C threshold → icing.
+        var parameters = TestHelpers.DefaultParams();
+        parameters.Jahresverbrauch = 80000;
+        var weather = TestHelpers.ConstantWeather(temperature: 6.0, humidity: 95.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.True(result.IcingHours > 0, "Icing should be detected at 6°C with high load after range extension");
+    }
+
+    // FrostCriticalHours
+
+    [Fact]
+    public void Run_FrostCriticalConditions_CountsAllHours()
+    {
+        // 4°C and 90% RH is inside the frost-critical ambient zone (2–7°C, RH ≥ 85%)
+        var parameters = TestHelpers.DefaultParams();
+        var weather = TestHelpers.ConstantWeather(temperature: 4.0, humidity: 90.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.Equal(8760, result.FrostCriticalHours);
+    }
+
+    [Fact]
+    public void Run_BelowFrostCriticalTemp_NoFrostCriticalHours()
+    {
+        // 1°C is below the 2°C lower bound
+        var parameters = TestHelpers.DefaultParams();
+        var weather = TestHelpers.ConstantWeather(temperature: 1.0, humidity: 90.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.Equal(0, result.FrostCriticalHours);
+    }
+
+    [Fact]
+    public void Run_AboveFrostCriticalTemp_NoFrostCriticalHours()
+    {
+        // 10°C is above the 7°C upper bound
+        var parameters = TestHelpers.DefaultParams();
+        var weather = TestHelpers.ConstantWeather(temperature: 10.0, humidity: 90.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.Equal(0, result.FrostCriticalHours);
+    }
+
+    [Fact]
+    public void Run_LowHumidity_NoFrostCriticalHours()
+    {
+        // 70% RH is below the 85% threshold even though temperature is in range
+        var parameters = TestHelpers.DefaultParams();
+        var weather = TestHelpers.ConstantWeather(temperature: 4.0, humidity: 70.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.Equal(0, result.FrostCriticalHours);
+    }
+
+    // DefrostCycles / DefrostQuote
+
+    [Fact]
+    public void Run_WithIcingHours_DefrostCyclesMatchFormula()
+    {
+        // DefrostCyclesEstimate = round(IcingHours / 1.5)
+        var parameters = TestHelpers.DefaultParams();
+        parameters.Jahresverbrauch = 40000;
+        var weather = TestHelpers.ConstantWeather(temperature: 3.0, humidity: 95.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        if (result.IcingHours > 0)
+        {
+            int expected = (int)Math.Round(result.IcingHours / 1.5);
+            Assert.Equal(expected, result.DefrostCyclesEstimate);
+        }
+    }
+
+    [Fact]
+    public void Run_WithIcingHours_DefrostQuoteIsAboutElevenPercent()
+    {
+        // DefrostQuote = (cycles × 10min) / IcingHours ≈ 11.1% regardless of weather
+        // because it's determined by the fixed model constants alone.
+        var parameters = TestHelpers.DefaultParams();
+        parameters.Jahresverbrauch = 40000;
+        var weather = TestHelpers.ConstantWeather(temperature: 3.0, humidity: 95.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        if (result.IcingHours > 0)
+            Assert.InRange(result.DefrostQuote, 10.0, 13.0); // ~11.1%, small rounding delta
+    }
+
+    [Fact]
+    public void Run_NoIcingHours_DefrostQuoteIsZero()
+    {
+        // No icing → defrost quota must be zero (guard against divide-by-zero)
+        var parameters = TestHelpers.DefaultParams();
+        var weather = TestHelpers.ConstantWeather(temperature: 15.0, humidity: 80.0);
+
+        var result = SimulationEngine.Run(parameters, weather);
+
+        Assert.Equal(0, result.IcingHours);
+        Assert.Equal(0.0, result.DefrostQuote);
+    }
+
     // PMin / Cycling
 
     [Fact]

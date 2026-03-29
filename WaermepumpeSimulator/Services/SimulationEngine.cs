@@ -21,14 +21,27 @@ public static class SimulationEngine
     private const double InitialSmoothedTemp = 5.0;         // Starting value for smoothed outside temperature (°C)
 
     // --- Icing model thresholds ---
+    // Literature (e.g. VDI 4645, Granryd et al.) shows frost-critical ambient conditions are 2–7°C at RH > 85%.
+    // The evaporator model (T_evap = T_outside - base - factor×loadFactor) must reach below 0°C at 7°C outdoor
+    // full load, requiring a total offset of ~7.5 K (base 0.5 + factor 7.0).
     private const double IcingEvapTempThreshold = -0.5;     // Evaporator temp must be below this for icing (°C)
-    private const double IcingHumidityThreshold = 88.0;     // Min relative humidity for icing risk (%)
-    private const double IcingOutsideTempMin = -4.0;        // Outside temp lower bound for icing range (°C)
-    private const double IcingOutsideTempMax = 3.0;         // Outside temp upper bound for icing range (°C)
+    private const double IcingHumidityThreshold = 85.0;     // Min relative humidity for icing risk (%, literature ~85%)
+    private const double IcingOutsideTempMin = -5.0;        // Outside temp lower bound for icing range (°C)
+    private const double IcingOutsideTempMax = 7.5;         // Outside temp upper bound for icing range (°C, literature up to ~7°C)
     private const double IcingEvapBaseOffset = 0.5;         // Base evaporator-to-ambient offset (K)
-    private const double IcingEvapLoadFactor = 3.0;         // Additional offset per unit load factor (K)
+    private const double IcingEvapLoadFactor = 7.0;         // Additional offset per unit load factor (K) — at full load gives ~7.5 K total
     private const double IcingCopPenalty = 0.15;            // Max COP reduction at full load during icing (15%)
     private const double IcingLoadThreshold = 1.2;          // Icing only checked when load > PMin × this factor
+
+    // --- Frost-critical ambient zone (location-based risk, independent of WP operation) ---
+    // Values live in IcingThresholds so charts can reference the same source.
+    private const double FrostCriticalTempMin = IcingThresholds.FrostCriticalTempMin;
+    private const double FrostCriticalTempMax = IcingThresholds.FrostCriticalTempMax;
+    private const double FrostCriticalHumidity = IcingThresholds.FrostCriticalHumidity;
+
+    // --- Defrost cycle estimation ---
+    private const double DefrostCycleIntervalHours = 1.5;   // Assumed mean interval between defrost cycles during icing operation (h)
+    private const double DefrostCycleDurationHours = 10.0 / 60.0; // Assumed mean duration of one defrost cycle (h)
 
     // --- Night setback ---
     private const double NightSetbackVorlaufFactor = 1.5;   // Vorlauf reduction multiplier during night setback
@@ -217,7 +230,7 @@ public static class SimulationEngine
         SimulationParameters parameters, List<WeatherDataPoint> weather,
         double[] lookupTemps, KennfeldCurves kennfeld, LoadProfile load, SimulationResult result)
     {
-        int icingHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
+        int icingHoursTotal = 0, frostCriticalHoursTotal = 0, cyclingHoursTotal = 0, heatingHoursTotal = 0;
         double smoothedOutsideTemp = InitialSmoothedTemp;
         double heatingCurveSlope = Math.Abs(parameters.Heizgrenze - parameters.NormAussentemperatur) > 0.01
             ? (parameters.VorlaufMax - parameters.VorlaufMin) / (parameters.Heizgrenze - parameters.NormAussentemperatur)
@@ -241,8 +254,13 @@ public static class SimulationEngine
             double maxPowerAvail = LerpInterp(outsideTemp, lookupTemps, kennfeld.PMax35, kennfeld.PMax55, vorlaufBlend);
             double minPowerAvail = LerpInterp(outsideTemp, lookupTemps, kennfeld.PMin35, kennfeld.PMin55, vorlaufBlend);
 
+            // Frost-critical ambient zone (location risk, independent of WP state)
+            bool isFrostCritical = outsideTemp >= FrostCriticalTempMin && outsideTemp <= FrostCriticalTempMax
+                                   && humidity >= FrostCriticalHumidity;
+            if (isFrostCritical) frostCriticalHoursTotal++;
+
             // Icing detection
-            var (isIcing, icingPenalty) = DetectIcing(outsideTemp, humidity, dewPoint, totalLoad, minPowerAvail, maxPowerAvail);
+            var (isIcing, icingPenalty, evapTemp) = DetectIcing(outsideTemp, humidity, dewPoint, totalLoad, minPowerAvail, maxPowerAvail);
             if (isIcing) icingHoursTotal++;
 
             // Cycling detection
@@ -283,9 +301,11 @@ public static class SimulationEngine
             result.Cycling[hour] = isCycling ? 1 : 0;
             result.MaxPowerAvailable[hour] = maxPowerAvail;
             result.MinPowerAvailable[hour] = minPowerAvail;
+            result.EvaporatorTemp[hour] = evapTemp;
         }
 
         result.IcingHours = icingHoursTotal;
+        result.FrostCriticalHours = frostCriticalHoursTotal;
         result.CyclingPercent = heatingHoursTotal > 0 ? (cyclingHoursTotal / (double)heatingHoursTotal) * 100 : 0;
     }
 
@@ -311,15 +331,15 @@ public static class SimulationEngine
         return (heatingLoad, vorlauf);
     }
 
-    private static (bool isIcing, double penalty) DetectIcing(
+    private static (bool isIcing, double penalty, double evapTemp) DetectIcing(
         double outsideTemp, double humidity, double dewPoint,
         double totalLoad, double minPowerAvail, double maxPowerAvail)
     {
-        if (totalLoad <= minPowerAvail * IcingLoadThreshold)
-            return (false, 1.0);
-
         double loadFactor = maxPowerAvail > 0 ? Math.Min(1.0, totalLoad / maxPowerAvail) : 1.0;
         double evaporatorTemp = outsideTemp - (IcingEvapBaseOffset + IcingEvapLoadFactor * loadFactor);
+
+        if (totalLoad <= minPowerAvail * IcingLoadThreshold)
+            return (false, 1.0, evaporatorTemp);
 
         bool isIcing = evaporatorTemp < IcingEvapTempThreshold
                        && evaporatorTemp < dewPoint
@@ -327,7 +347,7 @@ public static class SimulationEngine
                        && outsideTemp >= IcingOutsideTempMin && outsideTemp <= IcingOutsideTempMax;
 
         double penalty = isIcing ? 1.0 - IcingCopPenalty * loadFactor : 1.0;
-        return (isIcing, penalty);
+        return (isIcing, penalty, evaporatorTemp);
     }
 
     private static (double thermal, double electrical, double heizstab, double deficit) CalcPowerBalance(
@@ -361,6 +381,14 @@ public static class SimulationEngine
         result.HeizstabShare = totalThermal > 0 ? (totalHeizstab / totalThermal) * 100 : 0;
         result.DeficitHours = result.Deficit.Count(d => d > MinHeatingLoad);
         result.DeficitKwh = result.Deficit.Sum();
+
+        // Defrost cycle estimation based on icing hours
+        // One defrost cycle assumed every DefrostCycleIntervalHours during icing operation.
+        result.DefrostCyclesEstimate = (int)Math.Round(result.IcingHours / DefrostCycleIntervalHours);
+        result.DefrostHoursEstimate = result.DefrostCyclesEstimate * DefrostCycleDurationHours;
+        result.DefrostQuote = result.IcingHours > 0
+            ? result.DefrostHoursEstimate / result.IcingHours * 100.0
+            : 0.0;
     }
 
     // --- Design Point (Auslegung) ---
@@ -451,6 +479,7 @@ public static class SimulationEngine
             Cycling = new int[HoursPerYear],
             MaxPowerAvailable = new double[HoursPerYear],
             MinPowerAvailable = new double[HoursPerYear],
+            EvaporatorTemp = new double[HoursPerYear],
             LookupTemperatures = lookupTemps,
             PowerMaxAtVL35 = kennfeld.PMax35,
             PowerMaxAtVL55 = kennfeld.PMax55,

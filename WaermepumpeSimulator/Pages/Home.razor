@@ -205,8 +205,16 @@ else
                         <div class="bg-white p-4 rounded shadow border-t-4 border-cyan-400 flex flex-col relative overflow-hidden">
                             <div class="absolute -right-2 -top-4 opacity-10 text-cyan-500 text-7xl"><i class="fas fa-icicles"></i></div>
                             <div class="text-xs text-cyan-700 uppercase font-bold mb-1 flex items-center gap-1"><i class="fas fa-snowflake"></i> Abtau-Risiko</div>
-                            <div class="text-3xl font-black text-gray-800 relative z-10">@_result.IcingHours <span class="text-base font-normal text-gray-500">Stunden</span></div>
-                            <div class="text-xs text-gray-500 mt-auto pt-2 relative z-10">Kritische Wetterbedingungen um 0°C & feucht.</div>
+                            <div class="text-3xl font-black text-gray-800 relative z-10">@_result.IcingHours <span class="text-base font-normal text-gray-500">h frostwirksam</span></div>
+                            <div class="text-sm text-gray-600 relative z-10 mt-1">
+                                <span class="font-medium">@_result.FrostCriticalHours h</span> frostkritisch (2–7°C, RH&gt;85%)
+                            </div>
+                            <div class="text-sm text-gray-600 relative z-10">
+                                ca. <span class="font-medium">@_result.DefrostCyclesEstimate</span> Abtauzyklen &middot;
+                                <span class="font-medium">@_result.DefrostHoursEstimate.ToString("F0") h</span> Abtauzeit
+                                &middot; <span class="font-semibold @(_result.DefrostQuote > 15 ? "text-red-600" : "text-gray-700")">@_result.DefrostQuote.ToString("F1") %</span> Quote
+                            </div>
+                            <div class="text-xs text-gray-400 mt-auto pt-1 relative z-10">Annahme: Zyklus alle 90 min, Dauer 10 min. Grenzwert Literatur &lt;15%.</div>
                         </div>
                         <div class="bg-white p-4 rounded shadow border-t-4 @(_result.DeficitHours > 0 ? "border-red-400" : "border-gray-300") flex flex-col">
                             <div class="text-xs @(_result.DeficitHours > 0 ? "text-red-600" : "text-gray-500") uppercase font-bold mb-1 flex items-center gap-1"><i class="fas @(_result.DeficitHours > 0 ? "fa-exclamation-triangle" : "fa-check-circle")"></i> Ungedeckter Bedarf</div>
@@ -253,6 +261,13 @@ else
                     @if (_visitedTabs.Contains("icing"))
                     {
                         <div class="@(_activeTab != "icing" ? "hidden" : "")">
+                            <div class="chart-container">
+                                <KlimabirneChart Result="_result" />
+                                <p class="text-[10px] text-gray-500 mt-2">
+                                    Klimabirne: jeder Punkt = 1 Stunde/Jahr. Blau = Normalbetrieb, Orange = frostkritische Außenbedingungen (2–7°C, RH&gt;85%), Rot = Vereisung am Verdampfer detektiert.
+                                    Gestrichelte Linie = 85%-RH-Grenze.
+                                </p>
+                            </div>
                             <div class="chart-container">
                                 <IcingMapChart Result="_result" />
                             </div>

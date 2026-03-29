@@ -16,6 +16,7 @@ public class SimulationResult
     public int[] Cycling { get; set; } = [];
     public double[] MaxPowerAvailable { get; set; } = [];
     public double[] MinPowerAvailable { get; set; } = [];
+    public double[] EvaporatorTemp { get; set; } = [];
 
     // WP characteristic curves (indexed by LookupTemperatures)
     public double[] LookupTemperatures { get; set; } = [];
@@ -39,6 +40,10 @@ public class SimulationResult
     public double TotalHeat { get; set; }
     public double HeizstabShare { get; set; }
     public int IcingHours { get; set; }
+    public int FrostCriticalHours { get; set; }
+    public int DefrostCyclesEstimate { get; set; }
+    public double DefrostHoursEstimate { get; set; }
+    public double DefrostQuote { get; set; }
     public double CyclingPercent { get; set; }
     public int DeficitHours { get; set; }
     public double DeficitKwh { get; set; }

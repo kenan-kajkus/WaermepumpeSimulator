@@ -184,6 +184,15 @@ public class WeatherDataService
         // Pad or trim to 8760
         if (result.Count > 0)
         {
+            // Leap year (8784 h): remove Feb 29 (hours 1416–1439) rather than trimming December.
+            // EvaluationService month boundaries assume a 365-day year (Feb = 28 days, Mar starts at
+            // hour 1416). Tail-trimming would leave Feb 29 in the data and shift all months from
+            // March onward by one day.
+            const int Feb29StartHour = 1416; // (31 Jan + 28 Feb) × 24 h
+            const int LeapYearHours = 8784;
+            if (result.Count == LeapYearHours)
+                result.RemoveRange(Feb29StartHour, 24);
+
             int original = result.Count;
             while (result.Count < 8760)
             {

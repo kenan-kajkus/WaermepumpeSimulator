@@ -1,0 +1,125 @@
+@* Klimabirne: t,x-Diagram (temperature vs absolute humidity) with frost-critical zone and icing overlay *@
+@using WaermepumpeSimulator.Helpers
+@using WaermepumpeSimulator.Models
+
+@if (Result != null)
+{
+    <ApexChart TItem="ScatterPoint" Options="_options" Height="520" XAxisType="XAxisType.Numeric" @ref="_chart">
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_normalPts"
+                         Name="Normalbetrieb"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_frostZonePts"
+                         Name="Frostkritisch (Standort)"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_icingPts"
+                         Name="Vereisung (WP)"
+                         SeriesType="SeriesType.Scatter"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+        <ApexPointSeries TItem="ScatterPoint"
+                         Items="_rh85Curve"
+                         Name="85% r.F. Grenze"
+                         SeriesType="SeriesType.Line"
+                         XValue="p => p.X"
+                         YValue="p => p.Y" />
+    </ApexChart>
+}
+
+@code {
+    [Parameter] public SimulationResult? Result { get; set; }
+
+    private ApexChart<ScatterPoint>? _chart;
+    private ApexChartOptions<ScatterPoint> _options = new();
+    private List<ScatterPoint> _normalPts = [];
+    private List<ScatterPoint> _frostZonePts = [];
+    private List<ScatterPoint> _icingPts = [];
+    private List<ScatterPoint> _rh85Curve = [];
+    private bool _dataChanged;
+    private SimulationResult? _prev;
+
+    protected override void OnParametersSet()
+    {
+        if (Result == null || Result == _prev) return;
+        _prev = Result;
+        var r = Result;
+
+        _normalPts = [];
+        _frostZonePts = [];
+        _icingPts = [];
+
+        // Build scatter points — every 3rd hour for readability
+        for (int i = 0; i < 8760; i += 3)
+        {
+            double t = r.Temperature[i];
+            double rh = r.RelativeHumidity[i];
+            double x = MathHelpers.CalculateAbsoluteHumidity(t, rh);
+            var pt = new ScatterPoint(Math.Round(t, 1), Math.Round(x, 2), "");
+
+            if (r.Icing[i] == 1)
+                _icingPts.Add(pt);
+            else if (t >= IcingThresholds.FrostCriticalTempMin && t <= IcingThresholds.FrostCriticalTempMax
+                     && rh >= IcingThresholds.FrostCriticalHumidity)
+                _frostZonePts.Add(pt);
+            else
+                _normalPts.Add(pt);
+        }
+
+        // 85% RH boundary curve from -15°C to +20°C
+        _rh85Curve = [];
+        for (double t = -15.0; t <= 20.0; t += 0.5)
+        {
+            double x85 = MathHelpers.CalculateAbsoluteHumidity(t, 85.0);
+            _rh85Curve.Add(new ScatterPoint(Math.Round(t, 1), Math.Round(x85, 2), ""));
+        }
+
+        _options = new ApexChartOptions<ScatterPoint>
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false }, Zoom = new Zoom { Enabled = false } },
+            Title = new Title { Text = "Klimabirne — t,x-Diagramm (Feuchteluft)" },
+            Xaxis = new XAxis
+            {
+                Title = new AxisTitle { Text = "Außentemperatur t (°C)" },
+                Min = -20,
+                Max = 25,
+                TickAmount = 9,
+            },
+            Yaxis =
+            [
+                new YAxis
+                {
+                    Title = new AxisTitle { Text = "Absolute Feuchte x (g/kg)" },
+                    Min = 0,
+                    Max = 14,
+                    Labels = new YAxisLabels { Formatter = @"function(val) { return val.toFixed(1); }" }
+                }
+            ],
+            Colors = ["rgba(100,149,237,0.25)", "#f97316", "#dc2626", "#374151"],
+            Markers = new Markers { Size = new List<double> { 3, 4, 4, 0 } },
+            Stroke = new Stroke { Width = new List<double> { 0, 0, 0, 1.5 }, DashArray = new List<double> { 0, 0, 0, 6 } },
+            Legend = new Legend { Position = LegendPosition.Bottom },
+            Tooltip = new Tooltip
+            {
+                Enabled = true,
+                X = new TooltipX { Formatter = @"function(val) { return val.toFixed(1) + ' °C'; }" },
+                Y = new TooltipY { Formatter = @"function(val) { return val.toFixed(2) + ' g/kg'; }" }
+            }
+        };
+        _dataChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _dataChanged && _chart != null)
+        {
+            _dataChanged = false;
+            await _chart.RenderAsync();
+        }
+    }
+}

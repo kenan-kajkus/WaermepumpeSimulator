@@ -203,6 +203,61 @@ public class WeatherDataServiceTests
     }
 
     [Fact]
+    public void FilterByYear_LeapYear_RemovesFeb29NotDecember()
+    {
+        // Arrange: 8784 hours (2024 leap year).
+        // Mark Feb 29 (hours 1416–1439) with temperature 99.0 and December 31 with temperature 88.0.
+        // After filtering, neither sentinel should appear in the output.
+        const int feb29Start = 1416;
+        const int dec31Start = 8760; // last 24 hours of a leap year
+
+        var leapData = Enumerable.Range(0, 8784).Select(i => new WeatherDataPoint
+        {
+            Temperature = i >= feb29Start && i < feb29Start + 24 ? 99.0
+                        : i >= dec31Start ? 88.0
+                        : 5.0,
+            RelativeHumidity = 70,
+            Index = i,
+            Year = 2024
+        }).ToList();
+
+        // Act
+        var result = WeatherDataService.FilterByYear(leapData, "2024");
+
+        // Assert
+        Assert.Equal(8760, result.Count);
+        Assert.DoesNotContain(result, p => p.Temperature == 99.0); // Feb 29 removed
+        Assert.Contains(result, p => p.Temperature == 88.0);       // Dec 31 preserved (not tail-trimmed)
+
+        // March 1 (first 24 hours after Feb 28) must now start at index 1416, not 1440
+        Assert.Equal(5.0, result[1416].Temperature);
+    }
+
+    [Fact]
+    public void FilterByYear_LeapYear_MarchStartsAtCorrectIndex()
+    {
+        // EvaluationService assumes March starts at hour 1416.
+        // For a leap year that assumption is only valid if Feb 29 was removed.
+        // Use distinct temperatures: Jan/Feb-non29 = 1.0, Feb29 = 99.0, Mar onwards = 3.0.
+        var leapData = Enumerable.Range(0, 8784).Select(i => new WeatherDataPoint
+        {
+            Temperature = i >= 1416 && i < 1440 ? 99.0  // Feb 29
+                        : i >= 1440 ? 3.0               // Mar 1 onwards
+                        : 1.0,                          // Jan + Feb 1-28
+            RelativeHumidity = 70,
+            Index = i,
+            Year = 2024
+        }).ToList();
+
+        var result = WeatherDataService.FilterByYear(leapData, "2024");
+
+        // Hour 1415 = last hour of Feb 28 → temperature 1.0
+        Assert.Equal(1.0, result[1415].Temperature);
+        // Hour 1416 = first hour of Mar 1 → temperature 3.0 (Feb 29 was removed)
+        Assert.Equal(3.0, result[1416].Temperature);
+    }
+
+    [Fact]
     public void ParseCsv_WindowsLineEndings_ParsesCorrectly()
     {
         // Arrange \r\n line endings

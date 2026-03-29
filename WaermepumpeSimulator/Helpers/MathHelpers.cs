@@ -23,6 +23,26 @@ public static class MathHelpers
         return (magnusB * alpha) / (magnusA - alpha);
     }
 
+    /// <summary>
+    /// Saturation vapor pressure (Pa) via Magnus formula.
+    /// </summary>
+    public static double SaturationPressure(double temperature)
+    {
+        return 610.78 * Math.Exp(17.269 * temperature / (237.3 + temperature));
+    }
+
+    /// <summary>
+    /// Absolute humidity x in g/kg dry air from temperature (°C) and relative humidity (%).
+    /// </summary>
+    public static double CalculateAbsoluteHumidity(double temperature, double relativeHumidity)
+    {
+        const double pAtm = 101325.0; // Pa
+        double phi = Math.Clamp(relativeHumidity, 0.1, 100.0) / 100.0;
+        double ps = SaturationPressure(temperature);
+        double pv = phi * ps;
+        return 622.0 * pv / Math.Max(pAtm - pv, 1.0); // g/kg
+    }
+
     public static double GetCarnotCop(double sourceTemp, double flowTemp)
     {
         double deltaT = Math.Max(flowTemp - sourceTemp, 5.0);
