@@ -149,6 +149,9 @@
             </button>
             @if (SelectedPreset.StartsWith("user_"))
             {
+                <button @onclick="OnUpdateCustomPreset" class="bg-green-50 hover:bg-green-100 text-green-700 text-xs py-1.5 px-3 rounded border border-green-200 flex items-center justify-center gap-1" title="Änderungen speichern">
+                    <i class="fas fa-floppy-disk"></i>
+                </button>
                 <button @onclick="OnRenameCustomPreset" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs py-1.5 px-3 rounded border border-gray-300 flex items-center justify-center gap-1" title="Umbenennen">
                     <i class="fas fa-pen"></i>
                 </button>
@@ -226,6 +229,7 @@
     [Parameter] public EventCallback<string> OnPresetSelected { get; set; }
     [Parameter] public EventCallback OnResetPreset { get; set; }
     [Parameter] public EventCallback OnSaveCustomPreset { get; set; }
+    [Parameter] public EventCallback OnUpdateCustomPreset { get; set; }
     [Parameter] public EventCallback OnRenameCustomPreset { get; set; }
     [Parameter] public EventCallback OnDeleteCustomPreset { get; set; }
     [Parameter] public EventCallback OnSaveKennfeld { get; set; }

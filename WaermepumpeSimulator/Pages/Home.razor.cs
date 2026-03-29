@@ -472,6 +472,17 @@ public partial class Home
         await PersistCustomPresets();
     }
 
+    private async Task UpdateCustomPreset()
+    {
+        var preset = _customPresets.Find(p => p.Key == _selectedPreset);
+        if (preset == null) return;
+        preset.PMax = Params.RawPMax;
+        preset.PMin = Params.RawPMin;
+        preset.CopData = Params.RawCopData;
+        preset.HeizstabMax = Params.HeizstabMax;
+        await PersistCustomPresets();
+    }
+
     private async Task RenameCustomPreset()
     {
         var preset = _customPresets.Find(p => p.Key == _selectedPreset);
